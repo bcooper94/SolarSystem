@@ -15,9 +15,11 @@ string RESOURCE_DIR = "resources/"; // Where the resources are loaded from
 shared_ptr<Program> prog;
 shared_ptr<Program> backgroundProg;
 map<string, shared_ptr<Shape>> shapes;
+map<string, shared_ptr<Program>> planetProgs;
 
 vector<Planet> planets;
 Planet *sun;
+
 
 int g_width, g_height;
 float objectRotation, lightXTranslate, cameraBeta, cameraAlpha;
@@ -31,11 +33,11 @@ int g_GiboLen;
 
 double curTime;
 
-//global data for ground plane
+//global data for background plane
 GLuint BackgroundBuffObj, BackgroundNorBuffObj, BackgroundTexBuffObj, BackIndexBuffObj;
 
 Texture starTexture;
-GLint h_starTexture;
+Texture sunTexture;
 
 static float degreesToRad(float degrees) {
    return 3.1415 * degrees / 180;
@@ -252,10 +254,6 @@ static void initGeom() {
    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
 }
 
-static void initPlants() {
-
-}
-
 static void drawBackground(shared_ptr<MatrixStack>& P) {
    shared_ptr<MatrixStack> M = make_shared<MatrixStack>();
    M->loadIdentity();
@@ -364,9 +362,11 @@ static void init()
    backgroundProg->addAttribute("vertNor");
    backgroundProg->addAttribute("vertTex");
    backgroundProg->addTexture(&starTexture);
+   
+   initPlanetProgs();
 }
 
-static void draw(shared_ptr<Program>& prog,
+static void draw(shared_ptr<Program>& program,
       shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& M) {
    float x = cos(cameraAlpha) * cos(cameraBeta),
          y = sin(cameraAlpha), z = cos(cameraAlpha) * cos(3.1415 / 2 - cameraBeta);
@@ -376,15 +376,50 @@ static void draw(shared_ptr<Program>& prog,
    view->pushMatrix();
    view->lookAt(eye, lookAtPoint, upDirection);
 
-   glUniformMatrix4fv(prog->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
-   glUniformMatrix4fv(prog->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
-   glUniform3f(prog->getUniform("lightPos"), 0, 0, -6);
-   // glUniform3f(prog->getUniform("lightDirection"), -0.2, 0.2, 1);
-   glUniform3f(prog->getUniform("lightColor"), 1, 1, 1);
-   glUniform3f(prog->getUniform("attenuation"), 1, 0, 0);
-   shape->draw(prog);
+   glUniformMatrix4fv(program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
+   glUniformMatrix4fv(program->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
+   glUniform3f(program->getUniform("lightPos"), 0, 0, -6);
+   // glUniform3f(program->getUniform("lightDirection"), -0.2, 0.2, 1);
+   glUniform3f(program->getUniform("lightColor"), 1, 1, 1);
+   glUniform3f(program->getUniform("attenuation"), 1, 0, 0);
+   shape->draw(program);
 
    view->popMatrix();
+}
+
+static void initProg(shared_ptr<Program>& program, const Texture& texture) {
+   program->setVerbose(true);
+   program->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "sun_frag.glsl");
+   // prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "simple_frag.glsl");
+   program->init();
+   program->addUniform("P");
+   program->addUniform("V");
+   program->addUniform("M");
+   program->addUniform("lightPos");
+   // prog->addUniform("lightDirection");
+   program->addUniform("lightColor");
+   program->addUniform("matAmbient");
+   program->addUniform("matDiffuse");
+   program->addUniform("matSpecular");
+   program->addUniform("specularPower");
+   program->addUniform("attenuation");
+   program->addAttribute("vertPos");
+   program->addAttribute("vertNor");
+   program->addAttribute("vertTex");
+}
+
+static void initPlanetProgs() {
+   planetProgs["sun"] = make_shared<Program>();
+
+   sunTexture.setFilename(RESOURCE_DIR + "sun.bmp");
+   sunTexture.setUnit(1);
+   sunTexture.setName("SunTexture");
+   sunTexture.init();
+
+   initProg(planetProgs["sun"], sunTexture);
+   planetProgs["sun"]->addUniform("SunTexture");
+   // prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "sun_frag.glsl");
+   planetProgs["sun"]->addTexture(&sunTexture);
 }
 
 static void initPlanets() {
@@ -394,11 +429,6 @@ static void initPlanets() {
    planets.push_back(Planet(1.0, 2.0, 6.0, 6.0, 8.0, Vector3f(0, 0, -6)));
    planets.push_back(Planet(1.0, 2.0, 9.0, 9.0, 12.0, Vector3f(0, 0, -6)));
    planets.push_back(Planet(1.0, 2.0, 15.0, 11.0, 15, Vector3f(2, 0, -6)));
-}
-
-static void drawMesh(shared_ptr<Program>& prog,
-      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& M) {
-   draw(prog, shape, M);
 }
 
 static void placeMesh(shared_ptr<Program> prog, shared_ptr<Shape>& shape, const Vector3f& position,
@@ -413,28 +443,37 @@ static void placeMesh(shared_ptr<Program> prog, shared_ptr<Shape>& shape, const 
    draw(prog, shape, M);
 }
 
-static void drawPlanets() {
+static void drawPlanets(shared_ptr<MatrixStack>& P) {
    auto M = make_shared<MatrixStack>();
 
    M->pushMatrix();
    M->loadIdentity();
 
+   planetProgs["sun"]->bind();
+
    SetMaterial(8);
    M->pushMatrix();
    M->translate(sun->getLocation(curTime));
-   drawMesh(prog, shapes["sphere"], M);
+   glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+   draw(planetProgs["sun"], shapes["sphere"], M);
    M->popMatrix();
+
+   planetProgs["sun"]->unbind();
+
+   prog->bind();
 
    SetMaterial(2);
 
    for (size_t index = 0; index < planets.size(); index++) {
+      glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
       M->pushMatrix();
       M->translate(planets[index].getLocation(curTime));
-      drawMesh(prog, shapes["sphere"], M);
+      draw(prog, shapes["sphere"], M);
       M->popMatrix();
    }
 
    M->popMatrix();
+   prog->unbind();
 }
 
 static void render()
@@ -445,7 +484,6 @@ static void render()
    glViewport(0, 0, width, height);
 
    curTime = glfwGetTime();
-   cout << "Time: " << curTime << endl;
 
 	// Clear framebuffer.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -464,12 +502,8 @@ static void render()
    drawBackground(P);
 
    glEnable(GL_DEPTH_TEST);
-	prog->bind();
-	glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
 
-   drawPlanets();
-
-	prog->unbind();
+   drawPlanets(P);
 
    // Pop matrix stacks.
    P->popMatrix();
@@ -541,5 +575,6 @@ int main(int argc, char **argv)
 	// Quit program.
 	glfwDestroyWindow(window);
 	glfwTerminate();
+   delete sun;
 	return 0;
 }

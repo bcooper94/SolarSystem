@@ -39,13 +39,15 @@ static void initMeshes();
 
 static void init();
 
+static void initProg(shared_ptr<Program> &prog);
+
 static void initGeom();
+
+static void initPlanetProgs();
 
 static void initPlanets();
 
 static void draw(shared_ptr<Program>& prog, shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& M);
-
-static void drawMesh(shared_ptr<Program>& prog, shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& M);
 
 static void drawMeshes();
 

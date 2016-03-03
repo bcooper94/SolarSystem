@@ -1,7 +1,8 @@
-#version  330 core
+#version 330 core
+
 layout(location = 0) in vec4 vertPos;
 layout(location = 1) in vec3 vertNor;
-layout(location = 2) in vec3 vertTex;
+layout(location = 2) in vec2 vertTex;
 
 uniform mat4 P;
 uniform mat4 M;
@@ -24,6 +25,7 @@ out vec3 toCam;
 out float specularP;
 out vec3 atten;
 out float dist;
+out vec2 vTexCoord;
 
 void main()
 {
@@ -43,4 +45,5 @@ void main()
    specularP = specularPower;
    atten = attenuation;
    dist = distance;
+   vTexCoord = vertTex;
 }

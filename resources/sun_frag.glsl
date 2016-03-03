@@ -1,5 +1,7 @@
 #version 330 core
 
+uniform sampler2D SunTexture;
+
 in vec3 fragNor;
 in vec3 matAmb;
 in vec3 lightDir;
@@ -16,7 +18,8 @@ out vec4 color;
 
 void main()
 {
-   vec3 actualColor;
+   vec3 baseColor;
+   vec4 texColor;
    vec3 halfway = normalize(toCam + lightDir),
       normalizedNorm = normalize(fragNor),
       normalizedLight = normalize(lightDir);
@@ -27,7 +30,12 @@ void main()
    vec3 specularLight = pow(max(0, halfwayAngle), specularP) * lightC * matSpec,
       matDiffight = max(0, lightAngle) * lightC * matDiff;
 
-   actualColor = matAmb + (specularLight + matDiffight)
+   baseColor = matAmb + (specularLight + matDiffight)
       / (atten.x + atten.y * distance + atten.z * distance * distance);
-	color = vec4(actualColor, 1.0);
+
+   texColor = texture(SunTexture, vTexCoord);
+
+	color = vec4(texColor.rgb * baseColor, 1.0);
+   // color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
 }
+ 
