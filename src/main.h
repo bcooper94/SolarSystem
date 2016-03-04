@@ -47,7 +47,8 @@ static void initPlanetProgs();
 
 static void initPlanets();
 
-static void draw(shared_ptr<Program>& prog, shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& M);
+static void draw(shared_ptr<Program>& prog, shared_ptr<Shape>& shape,
+   shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack>& M);
 
 static void drawMeshes();
 
