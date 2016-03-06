@@ -392,14 +392,32 @@ static void initPlanets() {
       "mercury.bmp", 1));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 6.0, 6.0, 8.0, Vector3f(0, 0, -6)),
       "venus.bmp", 2));
-}
-
-static void drawPlanets(shared_ptr<MatrixStack>& P) {
-   shared_ptr<MatrixStack> view = getView();
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 9.0, 9.0, 14.0, Vector3f(0, 0, -6)),
+      "earth.bmp", 3));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 12.0, 12.0, 19.0, Vector3f(0, 0, -6)),
+      "mars.bmp", 4));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 20.0, 20.0, 19.0, Vector3f(0, 0, -6)),
+      "jupiter.bmp", 5));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 24.0, 24.0, 19.0, Vector3f(0, 0, -6)),
+      "saturn.bmp", 6));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 27.0, 27.0, 27.0, Vector3f(0, 0, -6)),
+      "uranus.bmp", 7));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 30.0, 30.0, 30.0, Vector3f(0, 0, -6)),
+      "neptune.bmp", 8));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 36.0, 36.0, 36.0, Vector3f(0, 0, -6)),
+      "pluto.bmp", 9));
 
    for (size_t index = 0; index < planetMeshes.size(); index++) {
       planetMeshes[index].init();
       planetMeshes[index].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+   }
+}
+
+static void drawPlanets(shared_ptr<MatrixStack>& P) {
+   shared_ptr<MatrixStack> view = getView();
+   int planetCount = planetMeshes.size();
+
+   for (size_t index = 0; index < planetCount; index++) {
       planetMeshes[index].draw(curTime, view, P);
    }
 }
