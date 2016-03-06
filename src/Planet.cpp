@@ -22,6 +22,10 @@ Planet::Planet(float radius, float rotationalV, float orbitWidth,
 Planet::~Planet() {
 }
 
+Vector3f Planet::getScale() {
+   return Vector3f(_radius, _radius, _radius);
+}
+
 Vector3f Planet::getLocation(double curTime) {
    return Vector3f(_location.x() + _orbitWidth * cos(2 * M_PI * curTime / _orbitTime),
       _location.y(),

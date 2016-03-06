@@ -12,6 +12,7 @@ using namespace Eigen;
 
 GLFWwindow *window; // Main application window
 static string RESOURCE_DIR = "resources/"; // Where the resources are loaded from
+static string IMG_DIR = "resources/img/";
 shared_ptr<Program> prog;
 shared_ptr<Program> backgroundProg;
 
@@ -336,7 +337,7 @@ static void init()
 
    backgroundTexture = Texture();
 
-   backgroundTexture.setFilename(RESOURCE_DIR + "starry_sky.bmp");
+   backgroundTexture.setFilename(IMG_DIR + "starry_sky.bmp");
    backgroundTexture.setUnit(0);
    backgroundTexture.setName("StarTexture");
    backgroundTexture.init();
@@ -386,25 +387,25 @@ static void draw(shared_ptr<Program>& program,
 }
 
 static void initPlanets() {
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 1.0, 0, 0, 1, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 1.0, 0, 0, 1, Vector3f(0, 0, -6)),
       "sun.bmp", 0));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 3.0, 3.0, 10.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 11.0, 11.0, 10.0, Vector3f(0, 0, -6)),
       "mercury.bmp", 1));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 6.0, 6.0, 8.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 13.0, 13.0, 8.0, Vector3f(0, 0, -6)),
       "venus.bmp", 2));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 9.0, 9.0, 14.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 16.0, 16.0, 14.0, Vector3f(0, 0, -6)),
       "earth.bmp", 3));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 12.0, 12.0, 19.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.15, 2.0, 19.0, 19.0, 19.0, Vector3f(0, 0, -6)),
       "mars.bmp", 4));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 20.0, 20.0, 19.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(3.0, 2.0, 27.0, 27.0, 19.0, Vector3f(0, 0, -6)),
       "jupiter.bmp", 5));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 24.0, 24.0, 19.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.0, 2.0, 37.0, 37.0, 19.0, Vector3f(0, 0, -6)),
       "saturn.bmp", 6));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 27.0, 27.0, 27.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 43.0, 43.0, 27.0, Vector3f(0, 0, -6)),
       "uranus.bmp", 7));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 30.0, 30.0, 30.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 47.0, 47.0, 30.0, Vector3f(0, 0, -6)),
       "neptune.bmp", 8));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 36.0, 36.0, 36.0, Vector3f(0, 0, -6)),
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 67.0, 53.0, 36.0, Vector3f(0, 0, -6)),
       "pluto.bmp", 9));
 
    for (size_t index = 0; index < planetMeshes.size(); index++) {
@@ -442,7 +443,7 @@ static void render()
    auto M = make_shared<MatrixStack>();
    // Apply perspective projection.
    P->pushMatrix();
-   P->perspective(45.0f, aspect, 0.01f, 100.0f);
+   P->perspective(45.0f, aspect, 0.01f, 250.0f);
 
    glDisable(GL_DEPTH_TEST);
    drawBackground(P);

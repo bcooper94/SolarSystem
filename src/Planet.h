@@ -10,6 +10,7 @@ public:
       float orbitHeight, float orbitTime, const Eigen::Vector3f& location);
    ~Planet();
 
+   Eigen::Vector3f getScale();
    Eigen::Vector3f getLocation(double curTime);
 
 private:

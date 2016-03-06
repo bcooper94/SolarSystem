@@ -4,10 +4,11 @@ using namespace std;
 using namespace Eigen;
 
 static string RESOURCE_DIR = "resources/";
+static string IMG_DIR = "resources/img/";
 
 PlanetMesh::PlanetMesh(const shared_ptr<Planet>& planet, const string& textureFile, int textureUnit) {
    _planet = planet;
-   _texture.setFilename(RESOURCE_DIR + textureFile);
+   _texture.setFilename(IMG_DIR + textureFile);
    _texture.setUnit(textureUnit);
    _texture.setName("Texture");
    _texture.init();
@@ -57,6 +58,7 @@ void PlanetMesh::draw(double curTime, shared_ptr<MatrixStack> view, shared_ptr<M
 
    M->pushMatrix();
    M->translate(_planet->getLocation(curTime));
+   M->scale(_planet->getScale());
 
    glUniformMatrix4fv(_program->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
    glUniformMatrix4fv(_program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
