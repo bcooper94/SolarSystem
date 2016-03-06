@@ -5,20 +5,19 @@
 #include "main.h"
 #include "Texture.h"
 #include "Planet.h"
+#include "PlanetMesh.h"
 
 using namespace std;
 using namespace Eigen;
 
 GLFWwindow *window; // Main application window
-string RESOURCE_DIR = "resources/"; // Where the resources are loaded from
-// string objFilename;
+static string RESOURCE_DIR = "resources/"; // Where the resources are loaded from
 shared_ptr<Program> prog;
 shared_ptr<Program> backgroundProg;
-map<string, shared_ptr<Shape>> shapes;
-map<string, shared_ptr<Program>> planetProgs;
 
-vector<Planet> planets;
-Planet *sun;
+Texture backgroundTexture;
+
+vector<PlanetMesh> planetMeshes;
 
 
 int g_width, g_height;
@@ -35,36 +34,6 @@ double curTime;
 
 //global data for background plane
 GLuint BackgroundBuffObj, BackgroundNorBuffObj, BackgroundTexBuffObj, BackIndexBuffObj;
-
-Texture starTexture;
-Texture sunTexture;
-Texture mercuryTexture;
-
-#define initPlanet(vertShader, fragShader, planetName, fileName, unit, textureName, texture) { \
-   planetProgs[planetName] = make_shared<Program>(); \
-   texture.setFilename(RESOURCE_DIR + fileName); \
-   texture.setUnit(unit); \
-   texture.setName(textureName); \
-   texture.init(); \
-   planetProgs[planetName]->setVerbose(true); \
-   planetProgs[planetName]->setShaderNames(RESOURCE_DIR + vertShader, RESOURCE_DIR + fragShader); \
-   planetProgs[planetName]->init(); \
-   planetProgs[planetName]->addUniform("P"); \
-   planetProgs[planetName]->addUniform("V"); \
-   planetProgs[planetName]->addUniform("M"); \
-   planetProgs[planetName]->addUniform("lightPos"); \
-   planetProgs[planetName]->addUniform("lightColor"); \
-   planetProgs[planetName]->addUniform("matAmbient"); \
-   planetProgs[planetName]->addUniform("matDiffuse"); \
-   planetProgs[planetName]->addUniform("matSpecular"); \
-   planetProgs[planetName]->addUniform("specularPower"); \
-   planetProgs[planetName]->addUniform("attenuation"); \
-   planetProgs[planetName]->addAttribute("vertPos"); \
-   planetProgs[planetName]->addAttribute("vertNor"); \
-   planetProgs[planetName]->addAttribute("vertTex"); \
-   planetProgs[planetName]->addUniform(textureName); \
-   planetProgs[planetName]->addTexture(&texture); \
-}
 
 static float degreesToRad(float degrees) {
    return 3.1415 * degrees / 180;
@@ -150,8 +119,11 @@ static void switchMouseActive(GLFWwindow *window) {
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
    }
    else {
+      double xPos, yPos;
       glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
-      cout << "Reactivating mouse: " << mouseActive << endl;
+      glfwGetCursorPos(window, &xPos, &yPos);
+      xPosition = xPos;
+      yPosition = yPos;
    }
 
    mouseActive = !mouseActive;
@@ -324,19 +296,10 @@ static shared_ptr<Shape> initShape(string objFilename) {
    return shape;
 }
 
-static void initMeshes() {
-   shapes["bunny"] = initShape("bunny.obj");
-   shapes["nefertiti"] = initShape("Nefertiti-10K.obj");
-   shapes["cube"] = initShape("cube.obj");
-   shapes["intactRobot"] = initShape("intact_robot.obj");
-   shapes["sphere"] = initShape("Geosphere.obj");
-}
-
 static void init()
 {
    GLSL::checkVersion();
 
-   shapes = map<string, shared_ptr<Shape>>();
    objectRotation = 0;
    lightXTranslate = -2;
    eye = Vector3f(0, 0, 0);
@@ -348,9 +311,8 @@ static void init()
    glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
    // Enable z-buffer test.
    glEnable(GL_DEPTH_TEST);
-   planets = vector<Planet>();
 
-   initMeshes();
+   // initMeshes();
 
    // Initialize the GLSL program.
    prog = make_shared<Program>();
@@ -372,10 +334,12 @@ static void init()
    prog->addAttribute("vertNor");
    prog->addAttribute("vertTex");
 
-   starTexture.setFilename(RESOURCE_DIR + "starry_sky.bmp");
-   starTexture.setUnit(0);
-   starTexture.setName("StarTexture");
-   starTexture.init();
+   backgroundTexture = Texture();
+
+   backgroundTexture.setFilename(RESOURCE_DIR + "starry_sky.bmp");
+   backgroundTexture.setUnit(0);
+   backgroundTexture.setName("StarTexture");
+   backgroundTexture.init();
 
    backgroundProg = make_shared<Program>();
    backgroundProg->setVerbose(true);
@@ -388,14 +352,10 @@ static void init()
    backgroundProg->addAttribute("vertPos");
    backgroundProg->addAttribute("vertNor");
    backgroundProg->addAttribute("vertTex");
-   backgroundProg->addTexture(&starTexture);
-   
-   initPlanetProgs();
+   backgroundProg->addTexture(&backgroundTexture);
 }
 
-static void draw(shared_ptr<Program>& program,
-      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& P,
-      shared_ptr<MatrixStack>& M) {
+static shared_ptr<MatrixStack> getView() {
    float x = cos(cameraAlpha) * cos(cameraBeta),
          y = sin(cameraAlpha), z = cos(cameraAlpha) * cos(3.1415 / 2 - cameraBeta);
 
@@ -403,6 +363,15 @@ static void draw(shared_ptr<Program>& program,
    auto view = make_shared<MatrixStack>();
    view->pushMatrix();
    view->lookAt(eye, lookAtPoint, upDirection);
+
+   return view;
+}
+
+static void draw(shared_ptr<Program>& program,
+      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& P,
+      shared_ptr<MatrixStack>& M) {
+   
+   shared_ptr<MatrixStack> view = getView();
 
    glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
    glUniformMatrix4fv(program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
@@ -416,96 +385,23 @@ static void draw(shared_ptr<Program>& program,
    view->popMatrix();
 }
 
-// static void initProg(shared_ptr<Program>& program, const Texture& texture) {
-//    program->setVerbose(true);
-//    program->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "sun_frag.glsl");
-//    // prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "simple_frag.glsl");
-//    program->init();
-//    program->addUniform("P");
-//    program->addUniform("V");
-//    program->addUniform("M");
-//    program->addUniform("lightPos");
-//    // prog->addUniform("lightDirection");
-//    program->addUniform("lightColor");
-//    program->addUniform("matAmbient");
-//    program->addUniform("matDiffuse");
-//    program->addUniform("matSpecular");
-//    program->addUniform("specularPower");
-//    program->addUniform("attenuation");
-//    program->addAttribute("vertPos");
-//    program->addAttribute("vertNor");
-//    program->addAttribute("vertTex");
-// }
-
-// initPlanet(planetName, fileName, unit, textureName, texturePtr)
-
-static void initPlanetProgs() {
-   initPlanet("simple_vert.glsl", "sun_frag.glsl", "sun", "sun.bmp", 1, "SunTexture", sunTexture);
-   initPlanet("simple_vert.glsl", "mercury_frag.glsl", "mercury",
-      "mercury.bmp", 2, "MercuryTexture", mercuryTexture);
-}
-
 static void initPlanets() {
-   sun = new Planet(1.0, 1.0, 0, 0, 1, Vector3f(0, 0, -6));
-
-   planets.push_back(Planet(1.0, 2.0, 3.0, 3.0, 10.0, Vector3f(0, 0, -6)));
-   planets.push_back(Planet(1.0, 2.0, 6.0, 6.0, 8.0, Vector3f(0, 0, -6)));
-   planets.push_back(Planet(1.0, 2.0, 9.0, 9.0, 12.0, Vector3f(0, 0, -6)));
-   planets.push_back(Planet(1.0, 2.0, 15.0, 11.0, 15, Vector3f(2, 0, -6)));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 1.0, 0, 0, 1, Vector3f(0, 0, -6)),
+      "sun.bmp", 0));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 3.0, 3.0, 10.0, Vector3f(0, 0, -6)),
+      "mercury.bmp", 1));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 6.0, 6.0, 8.0, Vector3f(0, 0, -6)),
+      "venus.bmp", 2));
 }
-
-// static void placeMesh(shared_ptr<Program> prog, shared_ptr<Shape>& shape, const Vector3f& position,
-//    const Vector3f& scale, float rotation, const Vector3f& rotAxis, int material) {
-//    shared_ptr<MatrixStack> M = make_shared<MatrixStack>();
-
-//    M->pushMatrix();
-//    SetMaterial(material);
-//    M->translate(position);
-//    M->rotate(rotation, rotAxis);
-//    M->scale(scale);
-//    draw(prog, shape, M);
-// }
 
 static void drawPlanets(shared_ptr<MatrixStack>& P) {
-   auto M = make_shared<MatrixStack>();
+   shared_ptr<MatrixStack> view = getView();
 
-   M->pushMatrix();
-   M->loadIdentity();
-
-   planetProgs["sun"]->bind();
-
-   SetMaterial(8);
-   M->pushMatrix();
-   M->translate(sun->getLocation(curTime));
-   draw(planetProgs["sun"], shapes["sphere"], P, M);
-   M->popMatrix();
-
-   planetProgs["sun"]->unbind();
-
-   planetProgs["mercury"]->bind();
-
-   SetMaterial(8);
-   M->pushMatrix();
-   M->translate(planets[0].getLocation(curTime));
-   draw(planetProgs["mercury"], shapes["sphere"], P, M);
-   M->popMatrix();
-
-   planetProgs["mercury"]->unbind();
-
-   prog->bind();
-
-   SetMaterial(2);
-
-   for (size_t index = 1; index < planets.size(); index++) {
-      // glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
-      M->pushMatrix();
-      M->translate(planets[index].getLocation(curTime));
-      draw(prog, shapes["sphere"],P, M);
-      M->popMatrix();
+   for (size_t index = 0; index < planetMeshes.size(); index++) {
+      planetMeshes[index].init();
+      planetMeshes[index].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+      planetMeshes[index].draw(curTime, view, P);
    }
-
-   M->popMatrix();
-   prog->unbind();
 }
 
 static void render()
@@ -607,6 +503,6 @@ int main(int argc, char **argv)
 	// Quit program.
 	glfwDestroyWindow(window);
 	glfwTerminate();
-   delete sun;
+
 	return 0;
 }
