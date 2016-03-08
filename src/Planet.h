@@ -13,6 +13,10 @@ public:
    Eigen::Vector3f getScale();
    Eigen::Vector3f getLocation(double curTime);
    float getRotation(double curTime);
+   float getInitialAngle();
+   float getOrbitTime();
+   float getOrbitWidth();
+   float getOrbitHeight();
 
 private:
    float _radius, _initialAngle, _rotationTime, _orbitWidth, _orbitHeight, _orbitTime;

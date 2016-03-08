@@ -7,6 +7,10 @@ layout(location = 2) in vec2 vertTex;
 uniform mat4 P;
 uniform mat4 M;
 uniform mat4 V;
+uniform float curTime;
+uniform vec2 orbitDimensions;
+uniform float orbitTime;
+uniform float initialAngle;
 uniform vec3 lightPos;
 uniform vec3 lightColor;
 uniform vec3 matAmbient;
@@ -29,9 +33,18 @@ out vec2 vTexCoord;
 
 void main()
 {
+   float PI = 3.1415;
+   // vec4 newPos = vec4(vertPos.x + orbitDimensions.x * cos(initialAngle + 2 * PI * curTime / orbitTime),
+   //    vertPos.y,
+   //    vertPos.z + orbitDimensions.y * sin(initialAngle + 2 * PI * curTime / orbitTime),
+   //    1);
    vec4 worldPos = M * vertPos;
    vec3 toCamera = -worldPos.xyz;
    float distance = length(lightPos - worldPos.xyz);
+
+   // Vector3f(_location.x() + _orbitWidth * cos(_initialAngle + 2 * M_PI * curTime / _orbitTime),
+   //    _location.y(),
+   //    _location.z() + _orbitHeight * sin(_initialAngle + 2 * M_PI * curTime / _orbitTime));
 
    fragNor = (M * vec4(vertNor, 0.0)).xyz;
 

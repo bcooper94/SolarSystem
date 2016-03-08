@@ -11,7 +11,7 @@
 using namespace std;
 using namespace Eigen;
 
-#define ASTEROID_COUNT 400
+#define ASTEROID_COUNT 900
 #define OBJECT_DISTANCE 40
 
 GLFWwindow *window; // Main application window
@@ -344,6 +344,11 @@ static void init()
    prog->addUniform("P");
    prog->addUniform("V");
    prog->addUniform("M");
+   prog->addUniform("curTime");
+   prog->addUniform("curTime");
+   prog->addUniform("orbitDimensions");
+   prog->addUniform("orbitTime");
+   prog->addUniform("initialAngle");
    prog->addUniform("lightPos");
    // prog->addUniform("lightDirection");
    prog->addUniform("lightColor");
@@ -409,25 +414,25 @@ static void draw(shared_ptr<Program>& program,
 
 static void initPlanets() {
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(9.0, 35, 1.0, 0, 0, 1,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.65, 41, 2.0, 11.0, 11.0, 14.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.8, 23, 2.0, 13.0, 13.0, 40.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.1, 18, 2.0, 16.0, 16.0, 55.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 63, 2.0, 19.0, 19.0, 90.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 79, 2.0, 40.0, 45.0, 250.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(4.5, 86, 2.0, 50.0, 50.0, 350.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.4, 110, 2.0, 63.0, 63.0, 500.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.5, 275, 2.0, 72.0, 72.0, 600.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "alt_sphere.obj", textureCount++));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.5, 323, 2.0, 88.0, 76.0, 700.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "Geosphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "alt_sphere.obj", textureCount++));
 
    planetMeshes[0].init();
    planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
@@ -442,7 +447,8 @@ static void initPlanets() {
 
 static void initAsteroids() {
    Texture asteroidText;
-   float angle, x, y, distance, distFromSun = 30.0, distRange = 4.0;
+   float angle, x, y, height, distance, distFromSun = 30.0, distRange = 3.25,
+      heightRange = 2.5;
 
    shared_ptr<Shape> asteroidModel = make_shared<Shape>();
    asteroidModel->loadMesh(RESOURCE_DIR + "asteroid.obj");
@@ -450,28 +456,20 @@ static void initAsteroids() {
    asteroidModel->init();
 
    asteroidText.setFilename(IMG_DIR + "mercury.bmp");
-   // asteroidText.setUnit(textureCount++);
+   asteroidText.setUnit(textureCount++);
    asteroidText.setName("Texture");
    asteroidText.init();
 
    for (size_t index = 0; index < ASTEROID_COUNT; index++) {
-      // asteroidText.setUnit(textureCount++);
       angle = ((float)rand() / RAND_MAX) * 360;
       distance = distFromSun - distRange + ((float)rand() / RAND_MAX) * 2 * distRange;
       x = distance * cos(angle);
       y = distance * sin(angle);
-      cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
+      height = ((float)rand() / RAND_MAX) * heightRange;
+      // cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
 
-      // asteroidMeshes.push_back(
-      //    PlanetMesh(make_shared<Planet>(0.5, 100, 0, 0, 1,
-      //       Vector3f(OBJECT_DISTANCE + x, 0, y)),
-      //       "mercury.bmp", "asteroid.obj", textureCount++));m
-      // asteroidMeshes[index].init();
       asteroidMeshes.push_back(PlanetMesh(make_shared<Planet>(0.3, angle, 10.0, distance, distance, 25.0,
-         Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "Geosphere.obj", textureCount));
-      // asteroidMeshes[index].setMaterial(Vector3f(0.19, 0.19, 0.2),
-      //    Vector3f(0.3, 0.3, 0.4),
-      //    Vector3f(0.5, 0.5, 0.6), 9.0);
+         Vector3f(OBJECT_DISTANCE, height, 0)), asteroidText, asteroidModel));
    }
 
    for (size_t index = 0; index < ASTEROID_COUNT; index++) {

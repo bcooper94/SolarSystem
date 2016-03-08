@@ -38,6 +38,10 @@ void PlanetMesh::init() {
    _program->addUniform("P");
    _program->addUniform("V");
    _program->addUniform("M");
+   _program->addUniform("curTime");
+   _program->addUniform("orbitDimensions");
+   _program->addUniform("orbitTime");
+   _program->addUniform("initialAngle");
    _program->addUniform("lightPos");
    _program->addUniform("lightColor");
    _program->addUniform("matAmbient");
@@ -72,6 +76,10 @@ void PlanetMesh::draw(double curTime, shared_ptr<MatrixStack> view, shared_ptr<M
    glUniformMatrix4fv(_program->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
    glUniformMatrix4fv(_program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
    glUniformMatrix4fv(_program->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
+   glUniform1f(_program->getUniform("curTime"), curTime);
+   glUniform2f(_program->getUniform("orbitDimensions"), _planet->getOrbitWidth(), _planet->getOrbitHeight());
+   glUniform1f(_program->getUniform("orbitTime"), _planet->getOrbitTime());
+   glUniform1f(_program->getUniform("initialAngle"), _planet->getInitialAngle());
    glUniform3f(_program->getUniform("lightPos"), 0, 0, -6);
    // glUniform3f(_program->getUniform("lightDirection"), -0.2, 0.2, 1);
    glUniform3f(_program->getUniform("lightColor"), 1, 1, 1);

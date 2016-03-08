@@ -27,6 +27,22 @@ Vector3f Planet::getScale() {
    return Vector3f(_radius, _radius, _radius);
 }
 
+float Planet::getInitialAngle() {
+   return _initialAngle;
+}
+
+float Planet::getOrbitTime() {
+   return _orbitTime;
+}
+
+float Planet::getOrbitWidth() {
+   return _orbitWidth;
+}
+
+float Planet::getOrbitHeight() {
+   return _orbitHeight;
+}
+
 Vector3f Planet::getLocation(double curTime) {
    return Vector3f(_location.x() + _orbitWidth * cos(_initialAngle + 2 * M_PI * curTime / _orbitTime),
       _location.y(),
