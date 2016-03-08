@@ -2,6 +2,7 @@
    to be written by students - 
 	CPE 471 Cal Poly Z. Wood + S. Sueda
 */
+#include <math.h>
 #include "main.h"
 #include "Texture.h"
 #include "Planet.h"
@@ -10,16 +11,22 @@
 using namespace std;
 using namespace Eigen;
 
+#define ASTEROID_COUNT 400
+#define OBJECT_DISTANCE 40
+
 GLFWwindow *window; // Main application window
 static string RESOURCE_DIR = "resources/"; // Where the resources are loaded from
 static string IMG_DIR = "resources/img/";
+
+static int textureCount = 0;
+
 shared_ptr<Program> prog;
 shared_ptr<Program> backgroundProg;
 
 Texture backgroundTexture;
 
 vector<PlanetMesh> planetMeshes;
-
+vector<PlanetMesh> asteroidMeshes;
 
 int g_width, g_height;
 float objectRotation, lightXTranslate, cameraBeta, cameraAlpha;
@@ -112,6 +119,13 @@ void SetMaterial(int mat) {
       glUniform3f(prog->getUniform("matDiffuse"), 0, 0, 0);
       glUniform3f(prog->getUniform("matSpecular"), 0, 0, 0);
       glUniform1f(prog->getUniform("specularPower"), 51.2);
+      break;
+    case 9: // planets
+      glUniform3f(prog->getUniform("matAmbient"), 1, 0.7, 0);
+      glUniform3f(prog->getUniform("matDiffuse"), 0, 0, 0);
+      glUniform3f(prog->getUniform("matSpecular"), 0, 0, 0);
+      glUniform1f(prog->getUniform("specularPower"), 51.2);
+      break;
    }
 }
 
@@ -158,6 +172,12 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
       Vector3f w = eye - lookAtPoint;
       eye += upDirection.cross(w) * 0.3;
    }
+   if (glfwGetKey(window, GLFW_KEY_SPACE)) {
+      eye += upDirection * 0.3;
+   }
+   if (glfwGetKey(window, GLFW_KEY_X)) {
+      eye -= upDirection * 0.3;
+   }
    if (glfwGetKey(window, GLFW_KEY_TAB)) {
       switchMouseActive(window);
    }
@@ -176,6 +196,8 @@ static void mouse_callback(GLFWwindow *window, int button, int action, int mods)
  //      mouseDown = false;
  //      glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
  //   }
+   cout << "Eye loc: (" << eye.x() << ", " << eye.y() << ", " << eye.z() << ")\n";
+   cout << "LookAt: (" << lookAtPoint.x() << ", " << lookAtPoint.y() << ", " << lookAtPoint.z() << ")\n";
 }
 
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -303,8 +325,7 @@ static void init()
 
    objectRotation = 0;
    lightXTranslate = -2;
-   eye = Vector3f(0, 0, 0);
-   lookAtPoint = Vector3f(0, 0, -1);
+   eye = Vector3f(0, 0, 8.5);
    upDirection = Vector3f(0, 1, 0);
    xPosition = 0;
    yPosition = 0;
@@ -387,39 +408,89 @@ static void draw(shared_ptr<Program>& program,
 }
 
 static void initPlanets() {
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 1.0, 0, 0, 1, Vector3f(0, 0, -6)),
-      "sun.bmp", 0));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 11.0, 11.0, 10.0, Vector3f(0, 0, -6)),
-      "mercury.bmp", 1));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 13.0, 13.0, 8.0, Vector3f(0, 0, -6)),
-      "venus.bmp", 2));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 16.0, 16.0, 14.0, Vector3f(0, 0, -6)),
-      "earth.bmp", 3));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.15, 2.0, 19.0, 19.0, 19.0, Vector3f(0, 0, -6)),
-      "mars.bmp", 4));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(3.0, 2.0, 27.0, 27.0, 19.0, Vector3f(0, 0, -6)),
-      "jupiter.bmp", 5));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.0, 2.0, 37.0, 37.0, 19.0, Vector3f(0, 0, -6)),
-      "saturn.bmp", 6));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 43.0, 43.0, 27.0, Vector3f(0, 0, -6)),
-      "uranus.bmp", 7));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 47.0, 47.0, 30.0, Vector3f(0, 0, -6)),
-      "neptune.bmp", 8));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 2.0, 67.0, 53.0, 36.0, Vector3f(0, 0, -6)),
-      "pluto.bmp", 9));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(9.0, 35, 1.0, 0, 0, 1,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.65, 41, 2.0, 11.0, 11.0, 14.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.8, 23, 2.0, 13.0, 13.0, 40.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.1, 18, 2.0, 16.0, 16.0, 55.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 63, 2.0, 19.0, 19.0, 90.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 79, 2.0, 40.0, 45.0, 250.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(4.5, 86, 2.0, 50.0, 50.0, 350.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.4, 110, 2.0, 63.0, 63.0, 500.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.5, 275, 2.0, 72.0, 72.0, 600.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "Geosphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.5, 323, 2.0, 88.0, 76.0, 700.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "Geosphere.obj", textureCount++));
 
-   for (size_t index = 0; index < planetMeshes.size(); index++) {
+   planetMeshes[0].init();
+   planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+
+   for (size_t index = 1; index < planetMeshes.size(); index++) {
       planetMeshes[index].init();
-      planetMeshes[index].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+      planetMeshes[index].setMaterial(Vector3f(0.19, 0.19, 0.2),
+         Vector3f(0.3, 0.3, 0.4),
+         Vector3f(0.5, 0.5, 0.6), 9.0);
    }
 }
 
-static void drawPlanets(shared_ptr<MatrixStack>& P) {
-   shared_ptr<MatrixStack> view = getView();
+static void initAsteroids() {
+   Texture asteroidText;
+   float angle, x, y, distance, distFromSun = 30.0, distRange = 4.0;
+
+   shared_ptr<Shape> asteroidModel = make_shared<Shape>();
+   asteroidModel->loadMesh(RESOURCE_DIR + "asteroid.obj");
+   asteroidModel->resize();
+   asteroidModel->init();
+
+   asteroidText.setFilename(IMG_DIR + "mercury.bmp");
+   // asteroidText.setUnit(textureCount++);
+   asteroidText.setName("Texture");
+   asteroidText.init();
+
+   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
+      // asteroidText.setUnit(textureCount++);
+      angle = ((float)rand() / RAND_MAX) * 360;
+      distance = distFromSun - distRange + ((float)rand() / RAND_MAX) * 2 * distRange;
+      x = distance * cos(angle);
+      y = distance * sin(angle);
+      cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
+
+      // asteroidMeshes.push_back(
+      //    PlanetMesh(make_shared<Planet>(0.5, 100, 0, 0, 1,
+      //       Vector3f(OBJECT_DISTANCE + x, 0, y)),
+      //       "mercury.bmp", "asteroid.obj", textureCount++));m
+      // asteroidMeshes[index].init();
+      asteroidMeshes.push_back(PlanetMesh(make_shared<Planet>(0.3, angle, 10.0, distance, distance, 25.0,
+         Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "Geosphere.obj", textureCount));
+      // asteroidMeshes[index].setMaterial(Vector3f(0.19, 0.19, 0.2),
+      //    Vector3f(0.3, 0.3, 0.4),
+      //    Vector3f(0.5, 0.5, 0.6), 9.0);
+   }
+
+   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
+      asteroidMeshes[index].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+      asteroidMeshes[index].init();
+   }
+}
+
+static void drawPlanets(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> view) {
    int planetCount = planetMeshes.size();
 
    for (size_t index = 0; index < planetCount; index++) {
       planetMeshes[index].draw(curTime, view, P);
+   }
+}
+
+static void drawAsteroids(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> view) {
+   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
+      asteroidMeshes[index].draw(curTime, view, P);
    }
 }
 
@@ -434,23 +505,24 @@ static void render()
 
 	// Clear framebuffer.
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
 	//Use the matrix stack for Lab 6
    float aspect = width/(float)height;
 
    // Create the matrix stacks - please leave these alone for now
    auto P = make_shared<MatrixStack>();
    auto M = make_shared<MatrixStack>();
+   shared_ptr<MatrixStack> view = getView();
    // Apply perspective projection.
    P->pushMatrix();
-   P->perspective(45.0f, aspect, 0.01f, 250.0f);
+   P->perspective(45.0f, aspect, 0.01f, 500.0f);
 
    glDisable(GL_DEPTH_TEST);
    drawBackground(P);
 
    glEnable(GL_DEPTH_TEST);
 
-   drawPlanets(P);
+   drawPlanets(P, view);
+   drawAsteroids(P, view);
 
    // Pop matrix stacks.
    P->popMatrix();
@@ -509,6 +581,7 @@ int main(int argc, char **argv)
 	init();
    initGeom();
    initPlanets();
+   initAsteroids();
 
 	// Loop until the user closes the window.
 	while(!glfwWindowShouldClose(window)) {

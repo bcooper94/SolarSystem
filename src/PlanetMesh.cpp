@@ -6,7 +6,8 @@ using namespace Eigen;
 static string RESOURCE_DIR = "resources/";
 static string IMG_DIR = "resources/img/";
 
-PlanetMesh::PlanetMesh(const shared_ptr<Planet>& planet, const string& textureFile, int textureUnit) {
+PlanetMesh::PlanetMesh(const shared_ptr<Planet>& planet, const string& textureFile,
+   const string& objFile, int textureUnit) {
    _planet = planet;
    _texture.setFilename(IMG_DIR + textureFile);
    _texture.setUnit(textureUnit);
@@ -14,9 +15,16 @@ PlanetMesh::PlanetMesh(const shared_ptr<Planet>& planet, const string& textureFi
    _texture.init();
 
    _shape = make_shared<Shape>();
-   _shape->loadMesh(RESOURCE_DIR + "Geosphere.obj");
+   _shape->loadMesh(RESOURCE_DIR + objFile);
    _shape->resize();
    _shape->init();
+}
+
+PlanetMesh::PlanetMesh(const shared_ptr<Planet>& planet, Texture& texture,
+   shared_ptr<Shape> shape) {
+   _planet = planet;
+   _texture = texture;
+   _shape = shape;
 }
 
 PlanetMesh::~PlanetMesh() {
@@ -59,6 +67,7 @@ void PlanetMesh::draw(double curTime, shared_ptr<MatrixStack> view, shared_ptr<M
    M->pushMatrix();
    M->translate(_planet->getLocation(curTime));
    M->scale(_planet->getScale());
+   M->rotate(_planet->getRotation(curTime), Vector3f(0, 1, 0));
 
    glUniformMatrix4fv(_program->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
    glUniformMatrix4fv(_program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());

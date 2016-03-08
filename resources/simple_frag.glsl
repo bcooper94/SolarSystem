@@ -16,6 +16,7 @@ out vec4 color;
 
 void main()
 {
+   float shine = specularP;
    vec3 actualColor;
    vec3 halfway = normalize(toCam + lightDir),
       normalizedNorm = normalize(fragNor),
@@ -24,10 +25,17 @@ void main()
       halfwayAngle = dot(normalizedNorm, halfway),
       distance = length(lightDir);
 
-   vec3 specularLight = pow(max(0, halfwayAngle), specularP) * lightC * matSpec,
+   if (actualColor.b > (actualColor.r + actualColor.g + actualColor.b) / 3) {
+      shine += 50;
+   }
+
+   vec3 specularLight = pow(max(0, halfwayAngle), shine) * lightC * matSpec,
       matDiffight = max(0, lightAngle) * lightC * matDiff;
+   
 
    actualColor = matAmb + (specularLight + matDiffight)
       / (atten.x + atten.y * distance + atten.z * distance * distance);
+
+
 	color = vec4(actualColor, 1.0);
 }

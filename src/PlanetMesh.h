@@ -12,7 +12,10 @@
 
 class PlanetMesh {
 public:
-   PlanetMesh(const std::shared_ptr<Planet>& planet, const std::string& textureFile, int textureUnit);
+   PlanetMesh(const std::shared_ptr<Planet>& planet, const std::string& textureFile,
+      const std::string& objFile, int textureUnit);
+   PlanetMesh(const std::shared_ptr<Planet>& planet, Texture& texture,
+      std::shared_ptr<Shape> shape);
    ~PlanetMesh();
 
    void init();
