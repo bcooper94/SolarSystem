@@ -11,7 +11,7 @@
 using namespace std;
 using namespace Eigen;
 
-#define ASTEROID_COUNT 900
+#define ASTEROID_COUNT 5
 #define OBJECT_DISTANCE 40
 
 GLFWwindow *window; // Main application window
@@ -43,6 +43,20 @@ double curTime;
 //global data for background plane
 GLuint BackgroundBuffObj, BackgroundNorBuffObj, BackgroundTexBuffObj, BackIndexBuffObj;
 
+GLuint framebuffer = 0, renderBuffer;
+
+GLuint renderedTexture,
+   depthTexture,
+   // The fullscreen quad's FBO
+   quad_VertexArrayID,
+   quad_vertexbuffer;
+
+GLenum drawBuffers[1] = {GL_COLOR_ATTACHMENT0};
+
+shared_ptr<Program> quadProg;
+
+ GLubyte *data;
+
 static float degreesToRad(float degrees) {
    return 3.1415 * degrees / 180;
 }
@@ -54,6 +68,34 @@ static void error_callback(int error, const char *description)
 
 static float clamp(float value, float minVal, float maxVal) {
    return min(max(value, minVal), maxVal);
+}
+
+static void checkGLError(int lineNum) {
+   GLenum error = glGetError();
+
+   switch(error) {
+      case GL_INVALID_ENUM:
+         cout << "GLError: invalid enum on line" << lineNum << endl;
+         break;
+      case GL_INVALID_VALUE:
+         cout << "GLError: invalid value on line " << lineNum << endl;
+         break;
+      case GL_INVALID_OPERATION:
+         cout << "GLError: invalid operation on line " << lineNum << endl;
+         break;
+      case GL_INVALID_FRAMEBUFFER_OPERATION:
+         cout << "GLError: invalid framebuffer operation on line " << lineNum << endl;
+         break;
+      case GL_OUT_OF_MEMORY:
+         cout << "GLError: out of memory on line " << lineNum << endl;
+         break;
+      case GL_STACK_UNDERFLOW:
+         cout << "GLError: stack underflow on line " << lineNum << endl;
+         break;
+      case GL_STACK_OVERFLOW:
+         cout << "GLError: stack overflow on line " << lineNum << endl;
+         break;
+   }
 }
 
 void SetMaterial(int mat) {
@@ -184,18 +226,7 @@ static void key_callback(GLFWwindow *window, int key, int scancode, int action, 
 }
 
 
-static void mouse_callback(GLFWwindow *window, int button, int action, int mods)
-{
- //   if (action == GLFW_PRESS) {
- //      glfwGetCursorPos(window, &xPosition, &yPosition);
- //      cout << "Pos X " << xPosition <<  " Pos Y " << yPosition << endl;
- //      glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
- //      mouseDown = true;
-	// }
- //   else if (action == GLFW_RELEASE) {
- //      mouseDown = false;
- //      glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
- //   }
+static void mouse_callback(GLFWwindow *window, int button, int action, int mods) {
    cout << "Eye loc: (" << eye.x() << ", " << eye.y() << ", " << eye.z() << ")\n";
    cout << "LookAt: (" << lookAtPoint.x() << ", " << lookAtPoint.y() << ", " << lookAtPoint.z() << ")\n";
 }
@@ -276,6 +307,189 @@ static void initGeom() {
    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
 }
 
+static shared_ptr<Shape> initShape(string objFilename) {
+   // Initialize mesh.
+   shared_ptr<Shape> shape = make_shared<Shape>();
+   shape->loadMesh(RESOURCE_DIR + objFilename);
+   shape->resize();
+   shape->init();
+
+   return shape;
+}
+
+static void init()
+{
+   GLSL::checkVersion();
+
+   objectRotation = 0;
+   lightXTranslate = -2;
+   eye = Vector3f(0, 0, 8.5);
+   upDirection = Vector3f(0, 1, 0);
+   xPosition = 0;
+   yPosition = 0;
+   // Set background color.
+   glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+   // Enable z-buffer test.
+   glEnable(GL_DEPTH_TEST);
+   
+   quadProg = make_shared<Program>();
+   quadProg->setVerbose(false);
+   quadProg->setShaderNames(RESOURCE_DIR + "bloom_vert.glsl", RESOURCE_DIR + "bloom_frag.glsl");
+   quadProg->init();
+   checkGLError(368);
+   quadProg->addUniform("renderedTexture");
+   quadProg->addAttribute("vertTex");
+
+   setupRenderTexture();
+   setupQuadBuffer();
+
+   // Initialize the GLSL program.
+   prog = make_shared<Program>();
+   prog->setVerbose(false);
+   prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "simple_frag.glsl");
+   prog->init();
+   prog->addUniform("P");
+   prog->addUniform("V");
+   prog->addUniform("M");
+   prog->addUniform("curTime");
+   prog->addUniform("curTime");
+   prog->addUniform("orbitDimensions");
+   prog->addUniform("orbitTime");
+   prog->addUniform("initialAngle");
+   prog->addUniform("lightPos");
+   // prog->addUniform("lightDirection");
+   prog->addUniform("lightColor");
+   prog->addUniform("matAmbient");
+   prog->addUniform("matDiffuse");
+   prog->addUniform("matSpecular");
+   prog->addUniform("specularPower");
+   prog->addUniform("attenuation");
+   prog->addAttribute("vertPos");
+   prog->addAttribute("vertNor");
+   prog->addAttribute("vertTex");
+
+   backgroundTexture = Texture();
+
+   backgroundTexture.setFilename(IMG_DIR + "starry_sky.bmp");
+   backgroundTexture.setUnit(0);
+   backgroundTexture.setName("StarTexture");
+   backgroundTexture.init();
+
+   backgroundProg = make_shared<Program>();
+   backgroundProg->setVerbose(false);
+   backgroundProg->setShaderNames(RESOURCE_DIR + "background_vert.glsl", RESOURCE_DIR + "background_frag.glsl");
+   backgroundProg->init();
+   backgroundProg->addUniform("P");
+   backgroundProg->addUniform("M");
+   backgroundProg->addUniform("StarTexture");
+   backgroundProg->addUniform("windowSize");
+   backgroundProg->addAttribute("vertPos");
+   backgroundProg->addAttribute("vertNor");
+   backgroundProg->addAttribute("vertTex");
+   backgroundProg->addTexture(&backgroundTexture);
+}
+
+static void initPlanets() {
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(9.0, 35, 1.0, 0, 0, 1,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.65, 41, 2.0, 11.0, 11.0, 14.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.8, 23, 2.0, 13.0, 13.0, 40.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.1, 18, 2.0, 16.0, 16.0, 55.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 30, 2.0, 19.0, 19.0, 90.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 79, 2.0, 45.0, 45.0, 250.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(4.5, 5, 2.0, 58.0, 58.0, 350.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.4, 110, 2.0, 71.0, 71.0, 500.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.5, 275, 2.0, 78.0, 78.0, 600.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "sphere.obj", textureCount++));
+   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.5, 323, 2.0, 94.0, 82.0, 700.0,
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "sphere.obj", textureCount++));
+
+   planetMeshes[0].init();
+   // planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+   planetMeshes[0].setMaterial(Vector3f(15, 12, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
+
+   for (size_t index = 1; index < planetMeshes.size(); index++) {
+      planetMeshes[index].init();
+      planetMeshes[index].setMaterial(Vector3f(0.19, 0.19, 0.2),
+         Vector3f(0.3, 0.3, 0.4),
+         Vector3f(0.5, 0.5, 0.6), 9.0);
+   }
+}
+
+static void initAsteroids() {
+   Texture asteroidText;
+   float angle, x, y, height, distance, radius,
+   distFromSun = 30.0, distRange = 3.25,
+      heightRange = 2.5, radiusMid = 0.18, radiusRange = 0.1;
+
+   shared_ptr<Shape> asteroidModel = make_shared<Shape>();
+   asteroidModel->loadMesh(RESOURCE_DIR + "asteroid.obj");
+   asteroidModel->resize();
+   asteroidModel->init();
+
+   asteroidText.setFilename(IMG_DIR + "mercury.bmp");
+   asteroidText.setUnit(textureCount++);
+   asteroidText.setName("Texture");
+   asteroidText.init();
+
+   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
+      angle = ((float)rand() / RAND_MAX) * 360;
+      distance = distFromSun - distRange + ((float)rand() / RAND_MAX) * 2 * distRange;
+      x = distance * cos(angle);
+      y = distance * sin(angle);
+      height = ((float)rand() / RAND_MAX) * heightRange;
+      radius = radiusMid + ((float)rand() / RAND_MAX) * radiusRange;
+      // cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
+
+      asteroidMeshes.push_back(PlanetMesh(make_shared<Planet>(radius, angle, 10.0, distance, distance, 50.0,
+         Vector3f(OBJECT_DISTANCE, height, 0)), asteroidText, asteroidModel));
+   }
+
+   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
+      asteroidMeshes[index].setMaterial(Vector3f(0.13, 0.13, 0.14),
+         Vector3f(0.3, 0.3, 0.4),
+         Vector3f(0.25, 0.25, 0.30), 1.0);
+      asteroidMeshes[index].init();
+   }
+}
+
+static shared_ptr<MatrixStack> getView() {
+   float x = cos(cameraAlpha) * cos(cameraBeta),
+         y = sin(cameraAlpha), z = cos(cameraAlpha) * cos(3.1415 / 2 - cameraBeta);
+
+   lookAtPoint = Vector3f(x, y, z) + eye;
+   auto view = make_shared<MatrixStack>();
+   view->pushMatrix();
+   view->lookAt(eye, lookAtPoint, upDirection);
+
+   return view;
+}
+
+static void draw(shared_ptr<Program>& program,
+      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& P,
+      shared_ptr<MatrixStack>& M) {
+   
+   shared_ptr<MatrixStack> view = getView();
+
+   glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
+   glUniformMatrix4fv(program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
+   glUniformMatrix4fv(program->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
+   glUniform3f(program->getUniform("lightPos"), 0, 0, -6);
+   // glUniform3f(program->getUniform("lightDirection"), -0.2, 0.2, 1);
+   glUniform3f(program->getUniform("lightColor"), 1, 1, 1);
+   glUniform3f(program->getUniform("attenuation"), 1, 0, 0);
+   shape->draw(program);
+
+   view->popMatrix();
+}
+
 static void drawBackground(shared_ptr<MatrixStack>& P) {
    shared_ptr<MatrixStack> M = make_shared<MatrixStack>();
    M->loadIdentity();
@@ -309,175 +523,6 @@ static void drawBackground(shared_ptr<MatrixStack>& P) {
    backgroundProg->unbind();
 }
 
-static shared_ptr<Shape> initShape(string objFilename) {
-   // Initialize mesh.
-   shared_ptr<Shape> shape = make_shared<Shape>();
-   shape->loadMesh(RESOURCE_DIR + objFilename);
-   shape->resize();
-   shape->init();
-
-   return shape;
-}
-
-static void init()
-{
-   GLSL::checkVersion();
-
-   objectRotation = 0;
-   lightXTranslate = -2;
-   eye = Vector3f(0, 0, 8.5);
-   upDirection = Vector3f(0, 1, 0);
-   xPosition = 0;
-   yPosition = 0;
-   // Set background color.
-   glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-   // Enable z-buffer test.
-   glEnable(GL_DEPTH_TEST);
-
-   // initMeshes();
-
-   // Initialize the GLSL program.
-   prog = make_shared<Program>();
-   prog->setVerbose(true);
-   prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "simple_frag.glsl");
-   prog->init();
-   prog->addUniform("P");
-   prog->addUniform("V");
-   prog->addUniform("M");
-   prog->addUniform("curTime");
-   prog->addUniform("curTime");
-   prog->addUniform("orbitDimensions");
-   prog->addUniform("orbitTime");
-   prog->addUniform("initialAngle");
-   prog->addUniform("lightPos");
-   // prog->addUniform("lightDirection");
-   prog->addUniform("lightColor");
-   prog->addUniform("matAmbient");
-   prog->addUniform("matDiffuse");
-   prog->addUniform("matSpecular");
-   prog->addUniform("specularPower");
-   prog->addUniform("attenuation");
-   prog->addAttribute("vertPos");
-   prog->addAttribute("vertNor");
-   prog->addAttribute("vertTex");
-
-   backgroundTexture = Texture();
-
-   backgroundTexture.setFilename(IMG_DIR + "starry_sky.bmp");
-   backgroundTexture.setUnit(0);
-   backgroundTexture.setName("StarTexture");
-   backgroundTexture.init();
-
-   backgroundProg = make_shared<Program>();
-   backgroundProg->setVerbose(true);
-   backgroundProg->setShaderNames(RESOURCE_DIR + "background_vert.glsl", RESOURCE_DIR + "background_frag.glsl");
-   backgroundProg->init();
-   backgroundProg->addUniform("P");
-   backgroundProg->addUniform("M");
-   backgroundProg->addUniform("StarTexture");
-   backgroundProg->addUniform("windowSize");
-   backgroundProg->addAttribute("vertPos");
-   backgroundProg->addAttribute("vertNor");
-   backgroundProg->addAttribute("vertTex");
-   backgroundProg->addTexture(&backgroundTexture);
-}
-
-static shared_ptr<MatrixStack> getView() {
-   float x = cos(cameraAlpha) * cos(cameraBeta),
-         y = sin(cameraAlpha), z = cos(cameraAlpha) * cos(3.1415 / 2 - cameraBeta);
-
-   lookAtPoint = Vector3f(x, y, z) + eye;
-   auto view = make_shared<MatrixStack>();
-   view->pushMatrix();
-   view->lookAt(eye, lookAtPoint, upDirection);
-
-   return view;
-}
-
-static void draw(shared_ptr<Program>& program,
-      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& P,
-      shared_ptr<MatrixStack>& M) {
-   
-   shared_ptr<MatrixStack> view = getView();
-
-   glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
-   glUniformMatrix4fv(program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
-   glUniformMatrix4fv(program->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
-   glUniform3f(program->getUniform("lightPos"), 0, 0, -6);
-   // glUniform3f(program->getUniform("lightDirection"), -0.2, 0.2, 1);
-   glUniform3f(program->getUniform("lightColor"), 1, 1, 1);
-   glUniform3f(program->getUniform("attenuation"), 1, 0, 0);
-   shape->draw(program);
-
-   view->popMatrix();
-}
-
-static void initPlanets() {
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(9.0, 35, 1.0, 0, 0, 1,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.65, 41, 2.0, 11.0, 11.0, 14.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.8, 23, 2.0, 13.0, 13.0, 40.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.1, 18, 2.0, 16.0, 16.0, 55.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 63, 2.0, 19.0, 19.0, 90.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 79, 2.0, 40.0, 45.0, 250.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(4.5, 86, 2.0, 50.0, 50.0, 350.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.4, 110, 2.0, 63.0, 63.0, 500.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.5, 275, 2.0, 72.0, 72.0, 600.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "alt_sphere.obj", textureCount++));
-   planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.5, 323, 2.0, 88.0, 76.0, 700.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "alt_sphere.obj", textureCount++));
-
-   planetMeshes[0].init();
-   planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
-
-   for (size_t index = 1; index < planetMeshes.size(); index++) {
-      planetMeshes[index].init();
-      planetMeshes[index].setMaterial(Vector3f(0.19, 0.19, 0.2),
-         Vector3f(0.3, 0.3, 0.4),
-         Vector3f(0.5, 0.5, 0.6), 9.0);
-   }
-}
-
-static void initAsteroids() {
-   Texture asteroidText;
-   float angle, x, y, height, distance, distFromSun = 30.0, distRange = 3.25,
-      heightRange = 2.5;
-
-   shared_ptr<Shape> asteroidModel = make_shared<Shape>();
-   asteroidModel->loadMesh(RESOURCE_DIR + "asteroid.obj");
-   asteroidModel->resize();
-   asteroidModel->init();
-
-   asteroidText.setFilename(IMG_DIR + "mercury.bmp");
-   asteroidText.setUnit(textureCount++);
-   asteroidText.setName("Texture");
-   asteroidText.init();
-
-   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
-      angle = ((float)rand() / RAND_MAX) * 360;
-      distance = distFromSun - distRange + ((float)rand() / RAND_MAX) * 2 * distRange;
-      x = distance * cos(angle);
-      y = distance * sin(angle);
-      height = ((float)rand() / RAND_MAX) * heightRange;
-      // cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
-
-      asteroidMeshes.push_back(PlanetMesh(make_shared<Planet>(0.3, angle, 10.0, distance, distance, 25.0,
-         Vector3f(OBJECT_DISTANCE, height, 0)), asteroidText, asteroidModel));
-   }
-
-   for (size_t index = 0; index < ASTEROID_COUNT; index++) {
-      asteroidMeshes[index].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
-      asteroidMeshes[index].init();
-   }
-}
-
 static void drawPlanets(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> view) {
    int planetCount = planetMeshes.size();
 
@@ -492,25 +537,185 @@ static void drawAsteroids(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> vi
    }
 }
 
+static void setupRenderTexture() {
+   data = (GLubyte *)malloc(3 * g_width * g_height);
+
+   // glGenTextures(1, &renderedTexture);
+   // checkGLError(546);
+   // glBindTexture(GL_TEXTURE_2D, renderedTexture);
+   // checkGLError(559);
+
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+   // checkGLError(551);
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+   // checkGLError(553);
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+   // checkGLError(555);
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
+   // checkGLError(559);
+   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+   
+   // checkGLError(561);
+   // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_width, g_height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
+   // checkGLError(559);
+
+   renderedTexture = createTexture(g_width, g_height, false);
+   depthTexture = createTexture(g_width, g_height, true);
+
+   glGenFramebuffers(1, &framebuffer);
+   checkGLError(567);
+   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+   checkGLError(569);
+
+   glGenRenderbuffers(1, &renderBuffer);
+   checkGLError(572);
+   glBindRenderbuffer(GL_RENDERBUFFER, renderBuffer);
+   checkGLError(574);
+   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
+   checkGLError(576);
+   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderBuffer);
+   checkGLError(578);
+
+   // set renderedTexture as color attachment 0
+   glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTexture, 0);
+   checkGLError(582);
+
+   glDrawBuffers(1, drawBuffers);
+   checkGLError(585);
+
+   assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
+
+   glBindTexture(GL_TEXTURE_2D, 0);
+   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+   checkGLError(591);
+}
+
+static unsigned int createTexture(int width, int height, bool isDepth) {
+   unsigned int textureId;
+
+   glGenTextures(1, &textureId);
+   checkGLError(595);
+   glBindTexture(GL_TEXTURE_2D, textureId);
+   checkGLError(597);
+   glTexImage2D(GL_TEXTURE_2D, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB,
+      width, height, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB, GL_FLOAT, NULL);
+   checkGLError(599);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+   checkGLError(601);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+   checkGLError(603);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+   checkGLError(605);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+   checkGLError(607);
+
+   assert(glGetError() == 0);
+
+   return textureId;
+}
+
+static void setupQuadBuffer() {
+   glGenVertexArrays(1, &quad_VertexArrayID);
+   checkGLError(579);
+   glBindVertexArray(quad_VertexArrayID);
+   checkGLError(581);
+
+   static const GLfloat g_quad_vertex_buffer_data[] = {
+      -1.0f, -1.0f, 0.0f,
+      1.0f, -1.0f, 0.0f,
+      -1.0f,  1.0f, 0.0f,
+      -1.0f,  1.0f, 0.0f,
+      1.0f, -1.0f, 0.0f,
+      1.0f,  1.0f, 0.0f,
+   };
+
+   glGenBuffers(1, &quad_vertexbuffer);
+   checkGLError(593);
+   glBindBuffer(GL_ARRAY_BUFFER, quad_vertexbuffer);
+   checkGLError(595);
+   glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
+   checkGLError(597);
+}
+
+static void drawRenderedTexture(int width, int height) {
+   glDepthMask(GL_FALSE);
+   checkGLError(632);
+   glDisable(GL_DEPTH_TEST);
+   checkGLError(634);
+
+   glBindFramebuffer(GL_FRAMEBUFFER, 0);
+   checkGLError(637);
+   // glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+   // checkGLError(639);
+
+   glViewport(0, 0, width, height);
+   checkGLError(643);
+   glClear(GL_COLOR_BUFFER_BIT);
+   checkGLError(644);
+
+   // glBlitFramebuffer(0, 0, g_width, g_height,
+   //                  0, 0, g_width, g_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+
+    
+   // glUseProgram(rtt_program_shader);
+   //use texture from our FBO generated in PASS 1     
+   // glUniform1i(glGetUniformLocation(rtt_program_shader, "texture_color"), 1);
+
+   glBindVertexArray(quad_VertexArrayID);
+   checkGLError(666);
+   quadProg->bind();
+   checkGLError(668);
+   glActiveTexture(GL_TEXTURE0);
+   checkGLError(670);
+   glBindTexture(GL_TEXTURE_2D, renderedTexture);
+   checkGLError(672);
+   glUniform1i(quadProg->getUniform("renderedTexture"), 0);
+   checkGLError(674);
+   
+   glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+   checkGLError(676);
+   // glDrawArrays(GL_TRIANGLES, 0, 6);
+
+   glBindTexture(GL_TEXTURE_2D, 0);
+   checkGLError(678);
+
+   quadProg->unbind();
+   checkGLError(680);
+}
+
+static void printMidPixels() {
+   cout << "Printing pixels:\n";
+   for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < 10; j++) {
+         printf("%d ", data[g_width / 2 - 5 + i + g_width * (g_height / 2 - 5 + j)]);
+      }
+   }
+   cout << endl;
+}
+
 static void render()
 {
-	// Get current frame buffer size.
 	int width, height;
    glfwGetFramebufferSize(window, &width, &height);
+
+   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+   checkGLError(704);
    glViewport(0, 0, width, height);
+   checkGLError(706);
 
    curTime = glfwGetTime();
 
-	// Clear framebuffer.
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-	//Use the matrix stack for Lab 6
-   float aspect = width/(float)height;
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   // Create the matrix stacks - please leave these alone for now
+   glDepthMask(GL_TRUE);
+
+   float aspect = width/(float)height;
    auto P = make_shared<MatrixStack>();
    auto M = make_shared<MatrixStack>();
    shared_ptr<MatrixStack> view = getView();
-   // Apply perspective projection.
+
    P->pushMatrix();
    P->perspective(45.0f, aspect, 0.01f, 500.0f);
 
@@ -520,10 +725,14 @@ static void render()
    glEnable(GL_DEPTH_TEST);
 
    drawPlanets(P, view);
-   drawAsteroids(P, view);
+   glReadPixels(width / 2 - 5, height / 2 - 5, width / 2 + 5, height / 2 + 5, GL_RGB, GL_UNSIGNED_BYTE, data);
+   // cout << data << endl;
+   // printMidPixels();
+   // drawAsteroids(P, view);
 
-   // Pop matrix stacks.
    P->popMatrix();
+
+   drawRenderedTexture(width, height);
 }
 
 int main(int argc, char **argv)
@@ -579,7 +788,12 @@ int main(int argc, char **argv)
 	init();
    initGeom();
    initPlanets();
-   initAsteroids();
+   // initAsteroids();
+
+   // if (!setupRenderTexture()) {
+   //    cout << "Framebuffer error\n";
+   //    return -1;
+   // }
 
 	// Loop until the user closes the window.
 	while(!glfwWindowShouldClose(window)) {

@@ -16,8 +16,8 @@ Shape::Shape() :
 	eleBufID(0),
 	posBufID(0),
 	norBufID(0),
-	texBufID(0)
-   // brightBufId(0)
+	texBufID(0),
+   renderedTexture(0)
 {
 }
 
@@ -196,6 +196,8 @@ void Shape::draw(const shared_ptr<Program> prog) const
 	
 	// Draw
 	glDrawElements(GL_TRIANGLES, (int)eleBuf.size(), GL_UNSIGNED_INT, (const void *)0);
+   // GLenum drawBuffers[1] = {0};
+   // glDrawBuffers(1, drawBuffers);
 	
 	// Disable and unbind
 	if(h_tex != -1) {

@@ -132,6 +132,7 @@ void Texture::init()
 	glActiveTexture(GL_TEXTURE0);
 	// Generate a texture buffer object
 	glGenTextures(1, &tid);
+	std::cout << "TextureID: " << tid << std::endl;
 	// Bind the current texture to be the newly generated texture object
 	glBindTexture(GL_TEXTURE_2D, tid);
 	// Load the actual texture data

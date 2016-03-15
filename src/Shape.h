@@ -29,7 +29,7 @@ private:
 	unsigned posBufID;
 	unsigned norBufID;
 	unsigned texBufID;
-	// unsigned brightBufID;
+	unsigned renderedTexture;
 };
 
 #endif

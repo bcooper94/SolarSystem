@@ -14,7 +14,7 @@ in vec3 atten;
 in float dist;
 in vec2 vTexCoord;
 
-out vec4 color;
+layout(location = 0) out vec4 color;
 
 void main()
 {
@@ -35,7 +35,16 @@ void main()
 
    texColor = texture(Texture, vTexCoord);
 
-	color = vec4(texColor.rgb * baseColor, 1.0);
+   vec3 preMappedColor = texColor.rgb * baseColor;
+
+   float brightness = preMappedColor.r + preMappedColor.g + preMappedColor.b / 3;
+
+   float gamma = 1.2;
+   // Reinhard tone mapping
+   vec3 mapped = preMappedColor / (preMappedColor + vec3(1.0));
+   mapped = pow(mapped, vec3(1.0 / gamma));
+
+	color = vec4(mapped, 1.0);
    // color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
 }
  
