@@ -49,13 +49,16 @@ GLuint renderedTexture,
    depthTexture,
    // The fullscreen quad's FBO
    quad_VertexArrayID,
-   quad_vertexbuffer;
+   quad_vertexbuffer,
+   quad_elementBuffer;
 
 GLenum drawBuffers[1] = {GL_COLOR_ATTACHMENT0};
 
 shared_ptr<Program> quadProg;
 
- GLubyte *data;
+GLubyte *data;
+
+Texture test;
 
 static float degreesToRad(float degrees) {
    return 3.1415 * degrees / 180;
@@ -328,17 +331,18 @@ static void init()
    xPosition = 0;
    yPosition = 0;
    // Set background color.
-   glClearColor(1.0f, 0.0f, 0.0f, 1.0f);
+   glClearColor(1.0f, 0.0f, 0.0f, 0.5f);
    // Enable z-buffer test.
    glEnable(GL_DEPTH_TEST);
    
    quadProg = make_shared<Program>();
-   quadProg->setVerbose(false);
+   quadProg->setVerbose(true);
    quadProg->setShaderNames(RESOURCE_DIR + "bloom_vert.glsl", RESOURCE_DIR + "bloom_frag.glsl");
    quadProg->init();
    checkGLError(368);
    quadProg->addUniform("renderedTexture");
    quadProg->addAttribute("vertTex");
+   quadProg->addAttribute("vertPos");
 
    setupRenderTexture();
    setupQuadBuffer();
@@ -391,25 +395,25 @@ static void init()
 
 static void initPlanets() {
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(9.0, 35, 1.0, 0, 0, 1,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "sun.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.65, 41, 2.0, 11.0, 11.0, 14.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mercury.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.8, 23, 2.0, 13.0, 13.0, 40.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "venus.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.1, 18, 2.0, 16.0, 16.0, 55.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "earth.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(1.0, 30, 2.0, 19.0, 19.0, 90.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "mars.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(5.0, 79, 2.0, 45.0, 45.0, 250.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)),  "jupiter.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(4.5, 5, 2.0, 58.0, 58.0, 350.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "saturn.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.4, 110, 2.0, 71.0, 71.0, 500.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "uranus.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(2.5, 275, 2.0, 78.0, 78.0, 600.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "neptune.bmp", "sphere.obj", textureCount));
    planetMeshes.push_back(PlanetMesh(make_shared<Planet>(0.5, 323, 2.0, 94.0, 82.0, 700.0,
-      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "sphere.obj", textureCount++));
+      Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "sphere.obj", textureCount));
 
    planetMeshes[0].init();
    // planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
@@ -435,7 +439,7 @@ static void initAsteroids() {
    asteroidModel->init();
 
    asteroidText.setFilename(IMG_DIR + "mercury.bmp");
-   asteroidText.setUnit(textureCount++);
+   asteroidText.setUnit(textureCount);
    asteroidText.setName("Texture");
    asteroidText.init();
 
@@ -470,6 +474,16 @@ static shared_ptr<MatrixStack> getView() {
    view->lookAt(eye, lookAtPoint, upDirection);
 
    return view;
+}
+
+static void printMidPixels() {
+   cout << "Printing pixels:\n";
+   for (int i = 0; i < 10; i++) {
+      for (int j = 0; j < 10; j++) {
+         printf("%d ", data[g_width / 2 - 5 + i + g_width * (g_height / 2 - 5 + j)]);
+      }
+   }
+   cout << endl;
 }
 
 static void draw(shared_ptr<Program>& program,
@@ -538,58 +552,44 @@ static void drawAsteroids(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> vi
 }
 
 static void setupRenderTexture() {
-   data = (GLubyte *)malloc(3 * g_width * g_height);
-
-   // glGenTextures(1, &renderedTexture);
-   // checkGLError(546);
-   // glBindTexture(GL_TEXTURE_2D, renderedTexture);
-   // checkGLError(559);
-
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-   // checkGLError(551);
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-   // checkGLError(553);
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-   // checkGLError(555);
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_BASE_LEVEL, 0);
-   // checkGLError(559);
-   // glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
-   
-   // checkGLError(561);
-   // glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, g_width, g_height, 0, GL_RGB, GL_UNSIGNED_BYTE, 0);
-   // checkGLError(559);
+   data = (GLubyte *)malloc(16 * g_width * g_height);
 
    renderedTexture = createTexture(g_width, g_height, false);
-   depthTexture = createTexture(g_width, g_height, true);
+   // depthTexture = createTexture(g_width, g_height, true);
 
    glGenFramebuffers(1, &framebuffer);
    checkGLError(567);
    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
    checkGLError(569);
 
-   glGenRenderbuffers(1, &renderBuffer);
-   checkGLError(572);
-   glBindRenderbuffer(GL_RENDERBUFFER, renderBuffer);
-   checkGLError(574);
-   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
-   checkGLError(576);
-   glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderBuffer);
-   checkGLError(578);
+   // glGenRenderbuffers(1, &renderBuffer);
+   // checkGLError(572);
+   // glBindRenderbuffer(GL_RENDERBUFFER, renderBuffer);
+   // checkGLError(574);
+   // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
+   // checkGLError(576);
+   // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderBuffer);
+   // checkGLError(578);
+
+   glDrawBuffers(1, drawBuffers);
+   checkGLError(581);
 
    // set renderedTexture as color attachment 0
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, renderedTexture, 0);
-   checkGLError(582);
-
-   glDrawBuffers(1, drawBuffers);
    checkGLError(585);
+
 
    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
-   glBindTexture(GL_TEXTURE_2D, 0);
    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-   checkGLError(591);
+   checkGLError(590);
+   glBindTexture(GL_TEXTURE_2D, 0);
+   checkGLError(592);
+
+   // test.setFilename(IMG_DIR + "starry_sky.bmp");
+   // test.setUnit(0);
+   // test.setName("renderedTexture");
+   // test.init();
 }
 
 static unsigned int createTexture(int width, int height, bool isDepth) {
@@ -599,17 +599,17 @@ static unsigned int createTexture(int width, int height, bool isDepth) {
    checkGLError(595);
    glBindTexture(GL_TEXTURE_2D, textureId);
    checkGLError(597);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+   checkGLError(601);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+   checkGLError(603);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+   checkGLError(605);
+   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+   checkGLError(607);
    glTexImage2D(GL_TEXTURE_2D, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB,
       width, height, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB, GL_FLOAT, NULL);
-   checkGLError(599);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-   checkGLError(601);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-   checkGLError(603);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-   checkGLError(605);
-   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-   checkGLError(607);
+   checkGLError(611);
 
    assert(glGetError() == 0);
 
@@ -617,19 +617,13 @@ static unsigned int createTexture(int width, int height, bool isDepth) {
 }
 
 static void setupQuadBuffer() {
-   glGenVertexArrays(1, &quad_VertexArrayID);
-   checkGLError(579);
-   glBindVertexArray(quad_VertexArrayID);
-   checkGLError(581);
-
    static const GLfloat g_quad_vertex_buffer_data[] = {
+      -1.0f, 1.0f, 0.0f,
       -1.0f, -1.0f, 0.0f,
       1.0f, -1.0f, 0.0f,
-      -1.0f,  1.0f, 0.0f,
-      -1.0f,  1.0f, 0.0f,
-      1.0f, -1.0f, 0.0f,
-      1.0f,  1.0f, 0.0f,
+      1.0f, 1.0f, 0.0f
    };
+   unsigned int idx[] = { 0, 1, 2, 0, 2, 3 };
 
    glGenBuffers(1, &quad_vertexbuffer);
    checkGLError(593);
@@ -637,77 +631,105 @@ static void setupQuadBuffer() {
    checkGLError(595);
    glBufferData(GL_ARRAY_BUFFER, sizeof(g_quad_vertex_buffer_data), g_quad_vertex_buffer_data, GL_STATIC_DRAW);
    checkGLError(597);
+
+   glGenBuffers(1, &quad_elementBuffer);
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad_elementBuffer);
+   glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
+
+   glBindBuffer(GL_ARRAY_BUFFER, 0);
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+
+   glGenVertexArrays(1, &quad_VertexArrayID);
+   checkGLError(579);
+   glBindVertexArray(quad_VertexArrayID);
+   checkGLError(581);
 }
 
 static void drawRenderedTexture(int width, int height) {
    glDepthMask(GL_FALSE);
-   checkGLError(632);
+   checkGLError(657);
    glDisable(GL_DEPTH_TEST);
-   checkGLError(634);
+   checkGLError(659);
 
    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-   checkGLError(637);
+   checkGLError(662);
    // glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-   // checkGLError(639);
 
    glViewport(0, 0, width, height);
-   checkGLError(643);
+   checkGLError(666);
    glClear(GL_COLOR_BUFFER_BIT);
-   checkGLError(644);
+   checkGLError(668);
+   glClearColor(0, 0, 1.0, 0.5);
 
    // glBlitFramebuffer(0, 0, g_width, g_height,
    //                  0, 0, g_width, g_height, GL_COLOR_BUFFER_BIT, GL_LINEAR);
 
-    
-   // glUseProgram(rtt_program_shader);
-   //use texture from our FBO generated in PASS 1     
-   // glUniform1i(glGetUniformLocation(rtt_program_shader, "texture_color"), 1);
-
    glBindVertexArray(quad_VertexArrayID);
    checkGLError(666);
+
    quadProg->bind();
    checkGLError(668);
-   glActiveTexture(GL_TEXTURE0);
+   // glActiveTexture(GL_TEXTURE0);
    checkGLError(670);
    glBindTexture(GL_TEXTURE_2D, renderedTexture);
+   // test.bind();
    checkGLError(672);
+
+   glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, data);
+   printMidPixels();
+
    glUniform1i(quadProg->getUniform("renderedTexture"), 0);
    checkGLError(674);
-   
+
+   glEnableVertexAttribArray(0);
+   glBindBuffer(GL_ARRAY_BUFFER, quad_vertexbuffer);
+   glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
+
+   int h_tex = quadProg->getAttribute("vertTex");
+   if(h_tex != -1) {
+      GLSL::enableVertexAttribArray(1);
+      glBindBuffer(GL_ARRAY_BUFFER, renderedTexture);
+      glVertexAttribPointer(h_tex, 2, GL_FLOAT, GL_FALSE, 0, (const void *)0);
+   }
+
+   // draw!
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad_elementBuffer);
    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+   
+   // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
    checkGLError(676);
    // glDrawArrays(GL_TRIANGLES, 0, 6);
 
+   glDisableVertexAttribArray(0);
+   // glDisableVertexAttribArray(1);
+   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
    glBindTexture(GL_TEXTURE_2D, 0);
-   checkGLError(678);
+   checkGLError(699);
 
    quadProg->unbind();
-   checkGLError(680);
-}
-
-static void printMidPixels() {
-   cout << "Printing pixels:\n";
-   for (int i = 0; i < 10; i++) {
-      for (int j = 0; j < 10; j++) {
-         printf("%d ", data[g_width / 2 - 5 + i + g_width * (g_height / 2 - 5 + j)]);
-      }
-   }
-   cout << endl;
+   checkGLError(602);
 }
 
 static void render()
 {
 	int width, height;
    glfwGetFramebufferSize(window, &width, &height);
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
-   checkGLError(704);
    glViewport(0, 0, width, height);
    checkGLError(706);
+   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+   checkGLError(708);
+   // glActiveTexture(GL_TEXTURE0);deredTexture);
+   // checkGLError(712);
+   // checkGLError(710);
+   // glBindTexture(GL_TEXTURE_2D, renderedTexture);
+   // checkGLError(712);
+   glBindTexture(GL_TEXTURE_2D, 0);
 
    curTime = glfwGetTime();
 
-   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    glDepthMask(GL_TRUE);
 
@@ -725,8 +747,7 @@ static void render()
    glEnable(GL_DEPTH_TEST);
 
    drawPlanets(P, view);
-   glReadPixels(width / 2 - 5, height / 2 - 5, width / 2 + 5, height / 2 + 5, GL_RGB, GL_UNSIGNED_BYTE, data);
-   // cout << data << endl;
+   // glReadPixels(width / 2 - 5, height / 2 - 5, width / 2 + 5, height / 2 + 5, GL_RGB, GL_FLOAT, data);
    // printMidPixels();
    // drawAsteroids(P, view);
 
