@@ -15,6 +15,7 @@ in float dist;
 in vec2 vTexCoord;
 
 layout(location = 0) out vec4 color;
+layout(location = 1) out vec4 brightColor;
 
 void main()
 {
@@ -45,6 +46,14 @@ void main()
    mapped = pow(mapped, vec3(1.0 / gamma));
 
 	color = vec4(mapped, 1.0);
-   // color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
+   color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
+   // color = vec4(preMappedColor, 1.0);
+
+   if (brightness > 1) {
+      brightColor = vec4(mapped, 1.0);
+   }
+   else {
+      brightColor = vec4(0);
+   }
 }
  
