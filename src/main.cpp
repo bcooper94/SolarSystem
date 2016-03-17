@@ -399,7 +399,6 @@ static void drawBackground(shared_ptr<MatrixStack>& P) {
    // draw!
    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, BackIndexBuffObj);
    glDrawArrays(GL_TRIANGLES, 0, 6);
-   // glDrawElements(GL_TRIANGLES, g_GiboLen, GL_UNSIGNED_SHORT, 0);
 
    glDisableVertexAttribArray(0);
    glDisableVertexAttribArray(1);
