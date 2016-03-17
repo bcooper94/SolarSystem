@@ -748,11 +748,6 @@ int main(int argc, char **argv)
    initPlanets();
    initAsteroids();
 
-   // if (!setupRenderTexture()) {
-   //    cout << "Framebuffer error\n";
-   //    return -1;
-   // }
-
 	// Loop until the user closes the window.
 	while(!glfwWindowShouldClose(window)) {
 		// Render scene.
