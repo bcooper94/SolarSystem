@@ -14,9 +14,8 @@ Escape - Exit the program.
 
 In a terminal window:
 
-1. Navigate to the final directory,
-2. Run
-   cmake .
-   make
-3. To run the program:
-   ./solarSystem [--no-bloom]
+1. Navigate to the final directory, then
+2. Run `cmake .`
+3. Run `make`
+4. To run the program:
+   `./solarSystem [--no-bloom]`
