@@ -45,6 +45,8 @@ static void initPlanets();
 
 static void initAsteroids();
 
+static void setupDepthBuffer();
+
 static void setupRenderTexture();
 
 static void setupPingPongFBO();
@@ -60,7 +62,7 @@ static void drawBackground(shared_ptr<MatrixStack>& P);
 
 static void drawAsteroids(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> view);
 
-static void drawQuad(shared_ptr<Program>& prog, int width, int height);
+static void drawQuad(shared_ptr<Program>& prog, int width, int height, int renderedTexture);
 
 static void render();
 

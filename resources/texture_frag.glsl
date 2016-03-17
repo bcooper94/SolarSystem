@@ -38,7 +38,7 @@ void main()
 
    vec3 preMappedColor = texColor.rgb * baseColor;
 
-   float brightness = preMappedColor.r + preMappedColor.g + preMappedColor.b / 3;
+   float brightness = (preMappedColor.r + preMappedColor.g + preMappedColor.b) / 3;
 
    float gamma = 1.2;
    // Reinhard tone mapping
@@ -46,7 +46,7 @@ void main()
    mapped = pow(mapped, vec3(1.0 / gamma));
 
 	color = vec4(mapped, 1.0);
-   color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
+   // color = vec4(texColor.r, texColor.g, texColor.b, 1.0);
    // color = vec4(preMappedColor, 1.0);
 
    if (brightness > 1) {

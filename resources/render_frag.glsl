@@ -14,19 +14,15 @@ vec2 getTexCoords() {
 }
 
 void main() {
-   // color = vec4(1, 0, 1, 1);
    vec2 texCoord = getTexCoords();
-   vec4 texColor = texture(renderedTexture, texCoord),
-      blurredColor = texture(brightTexture, texCoord);
-   color = texColor + blurredColor;
+   vec3 texColor = texture(renderedTexture, texCoord).rgb,
+      blurredColor = texture(brightTexture, texCoord).rgb,
+      preMappedColor = texColor + blurredColor;
 
-   float brightness = (color.r + color.g + color.b) / 3;
+   float gamma = 1.2;
+   // Reinhard tone mapping
+   vec3 mapped = preMappedColor / (preMappedColor + vec3(1.0));
+   mapped = pow(mapped, vec3(1.0 / gamma));
 
-   // if (brightness < 1) {
-   //    discard;
-   // }
-   // color = vec4(texCoord, 0, 1);
-   // color = vec4(0, 1, 0, 1);
-   // float grayScale = (color.r + color.g + color.b) / 3;
-   // color = vec4(vec3(grayScale), 1);
+   color = vec4(mapped, 1.0);
 }

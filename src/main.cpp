@@ -11,7 +11,7 @@
 using namespace std;
 using namespace Eigen;
 
-#define ASTEROID_COUNT 5
+#define ASTEROID_COUNT 1
 #define OBJECT_DISTANCE 40
 
 GLFWwindow *window; // Main application window
@@ -42,7 +42,7 @@ double curTime;
 //global data for background plane
 GLuint BackgroundBuffObj, BackgroundNorBuffObj, BackgroundTexBuffObj, BackIndexBuffObj;
 
-GLuint framebuffer = 0, renderBuffer;
+GLuint framebuffer = 0, depthBuffer;
 map<bool, GLuint> pingpongFBO;
 
 GLuint renderedTexture,
@@ -361,6 +361,7 @@ static void init()
    bloomProg->addUniform("windowWidth");
    bloomProg->addUniform("windowHeight");
    bloomProg->addUniform("horizontal");
+   bloomProg->addUniform("blurDir");
    bloomProg->addAttribute("vertPos");
 
    // Initialize the GLSL program.
@@ -567,27 +568,36 @@ static void drawAsteroids(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> vi
    }
 }
 
+static void setupDepthBuffer() {
+   glGenRenderbuffers(1, &depthBuffer);
+   checkGLError(572);
+   glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+   checkGLError(574);
+   glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
+   checkGLError(576);
+   // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+   // checkGLError(577);
+   // glBindRenderbuffer(GL_RENDERBUFFER, 0);
+   // checkGLError(591);
+}
+
 static void setupRenderTexture() {
    data = (GLubyte *)malloc(16 * g_width * g_height);
+
+   glDepthMask(GL_TRUE);
 
    renderedTexture = createTexture(g_width, g_height, false);
    brightTextures[0] = createTexture(g_width, g_height, false);
    brightTextures[1] = createTexture(g_width, g_height, false);
    // depthTexture = createTexture(g_width, g_height, true);
 
+   setupDepthBuffer();
+   // glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+
    glGenFramebuffers(1, &framebuffer);
    checkGLError(567);
    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
    checkGLError(569);
-
-   // glGenRenderbuffers(1, &renderBuffer);
-   // checkGLError(572);
-   // glBindRenderbuffer(GL_RENDERBUFFER, renderBuffer);
-   // checkGLError(574);
-   // glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
-   // checkGLError(576);
-   // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, renderBuffer);
-   // checkGLError(578);
 
    glDrawBuffers(sizeof(drawBuffers), drawBuffers);
    checkGLError(581);
@@ -599,12 +609,25 @@ static void setupRenderTexture() {
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, brightTextures[0], 0);
    checkGLError(584);
 
+   // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, brightTextures[0], 0);
+   // checkGLError(612);
+   
+   // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
+   // checkGLError(599);
+
+   // glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
+   // checkGLError(574);
+   // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
+   // checkGLError(610);
+
    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
    glBindFramebuffer(GL_FRAMEBUFFER, 0);
    checkGLError(590);
    glBindTexture(GL_TEXTURE_2D, 0);
    checkGLError(592);
+   glBindRenderbuffer(GL_RENDERBUFFER, 0);
+   checkGLError(625);
 }
 
 static void setupPingPongFBO() {
@@ -642,6 +665,7 @@ static unsigned int createTexture(int width, int height, bool isDepth) {
    checkGLError(605);
    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
    checkGLError(607);
+
    glTexImage2D(GL_TEXTURE_2D, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB,
       width, height, 0, isDepth ? GL_DEPTH_COMPONENT : GL_RGB, GL_FLOAT, NULL);
    checkGLError(611);
@@ -689,55 +713,26 @@ static void drawRenderedTexture(int width, int height) {
 
    glBindFramebuffer(GL_FRAMEBUFFER, 0);
    checkGLError(662);
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   glViewport(0, 0, width, height);
-   checkGLError(666);
-   glClear(GL_COLOR_BUFFER_BIT);
    checkGLError(668);
-   glClearColor(0, 0, 1.0, 0.5);
+   glClearColor(0, 0, 0, 1);
 
    glBindVertexArray(quad_VertexArrayID);
    checkGLError(666);
 
    quadProg->bind();
-   checkGLError(668);
    checkGLError(670);
+
    glActiveTexture(GL_TEXTURE0);
    glBindTexture(GL_TEXTURE_2D, renderedTexture);
    glUniform1i(quadProg->getUniform("renderedTexture"), 0);
 
    glActiveTexture(GL_TEXTURE1);
-   glBindTexture(GL_TEXTURE_2D, brightTextures[0]);
+   glBindTexture(GL_TEXTURE_2D, pingpongFBO[false]);
    glUniform1i(quadProg->getUniform("brightTexture"), 1);
 
-   drawQuad(quadProg, width, height);
-   // test.bind();
-   // checkGLError(672);
-
-   // // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, data);
-   // // printMidPixels();
-
-   // glUniform1i(quadProg->getUniform("renderedTexture"), 0);
-   // glUniform1i(quadProg->getUniform("windowWidth"), width);
-   // glUniform1i(quadProg->getUniform("windowHeight"), height);
-
-   // glEnableVertexAttribArray(0);
-   // glBindBuffer(GL_ARRAY_BUFFER, quad_vertexbuffer);
-   // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-   // // draw!
-   // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad_elementBuffer);
-   // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-   
-   // // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-   // checkGLError(676);
-   // // glDrawArrays(GL_TRIANGLES, 0, 6);
-
-   // glDisableVertexAttribArray(0);
-   // // glDisableVertexAttribArray(1);
-   // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-   // glBindTexture(GL_TEXTURE_2D, 0);
-   // checkGLError(699);
+   drawQuad(quadProg, width, height, 0);
 
    quadProg->unbind();
    checkGLError(602);
@@ -745,7 +740,7 @@ static void drawRenderedTexture(int width, int height) {
 
 static void blurTexture(int width, int height) {
    GLboolean isHorizontal = true, first_iteration = true;
-   GLuint amount = 20;
+   GLuint amount = 10;
 
    glDepthMask(GL_FALSE);
    checkGLError(657);
@@ -757,7 +752,7 @@ static void blurTexture(int width, int height) {
 
    glViewport(0, 0, width, height);
    checkGLError(666);
-   glClear(GL_COLOR_BUFFER_BIT);
+   // glClear(GL_COLOR_BUFFER_BIT);
    checkGLError(668);
    glClearColor(0, 0, 1.0, 0.5);
 
@@ -766,77 +761,35 @@ static void blurTexture(int width, int height) {
    for (GLuint i = 0; i < amount; i++)
    {
       glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[isHorizontal]); 
-      glBindTexture(GL_TEXTURE_2D, first_iteration ? brightTextures[0] : brightTextures[1]);
+      glBindTexture(GL_TEXTURE_2D, first_iteration ? brightTextures[0] : pingpongFBO[isHorizontal]);
       isHorizontal = !isHorizontal;
       glUniform1i(bloomProg->getUniform("horizontal"), isHorizontal ? 1 : 0);
-      drawQuad(bloomProg, width, height);
+
+      if (isHorizontal) {
+         glUniform2f(bloomProg->getUniform("blurDir"), 1, 0);
+      }
+      else {
+         glUniform2f(bloomProg->getUniform("blurDir"), 0, 1);
+      }
+      drawQuad(bloomProg, width, height, 0);
       
       if (first_iteration) {
          first_iteration = false;
       }
    }
 
-
-   // drawQuad(bloomProg, width, height);
-
-
-
-   // glBindVertexArray(quad_VertexArrayID);
-   // checkGLError(666);
-
-   // // bloomProg->bind();
-   // checkGLError(668);
-   // // glActiveTexture(GL_TEXTURE0);
-   // checkGLError(670);
-   // glBindTexture(GL_TEXTURE_2D, brightTextures[0]);
-   // // test.bind();
-   // checkGLError(672);
-
-   // // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, data);
-   // // printMidPixels();
-
-   // glUniform1i(bloomProg->getUniform("renderedTexture"), 0);
-   // glUniform1i(bloomProg->getUniform("windowWidth"), width);
-   // glUniform1i(bloomProg->getUniform("windowHeight"), height);
-
-   // glEnableVertexAttribArray(0);
-   // glBindBuffer(GL_ARRAY_BUFFER, quad_vertexbuffer);
-   // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
-
-   // // draw!
-   // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad_elementBuffer);
-   // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-   
-   // // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
-   // checkGLError(676);
-   // // glDrawArrays(GL_TRIANGLES, 0, 6);
-
-   // glDisableVertexAttribArray(0);
-   // // glDisableVertexAttribArray(1);
-   // glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
-   // glBindTexture(GL_TEXTURE_2D, 0);
-   checkGLError(699);
-
    bloomProg->unbind();
    checkGLError(602);
 }
 
-static void drawQuad(shared_ptr<Program>& prog, int width, int height) {
+static void drawQuad(shared_ptr<Program>& prog, int width, int height, int renderedTexture) {
    glBindVertexArray(quad_VertexArrayID);
    checkGLError(666);
 
-   // bloomProg->bind();
-   checkGLError(668);
-   // glActiveTexture(GL_TEXTURE0);
-   checkGLError(670);
    glBindTexture(GL_TEXTURE_2D, brightTextures[0]);
-   // test.bind();
    checkGLError(672);
 
-   // glGetTexImage(GL_TEXTURE_2D, 0, GL_RGB, GL_FLOAT, data);
-   // printMidPixels();
-
-   glUniform1i(prog->getUniform("renderedTexture"), 0);
+   glUniform1i(prog->getUniform("renderedTexture"), renderedTexture);
    glUniform1i(prog->getUniform("windowWidth"), width);
    glUniform1i(prog->getUniform("windowHeight"), height);
 
@@ -848,12 +801,10 @@ static void drawQuad(shared_ptr<Program>& prog, int width, int height) {
    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, quad_elementBuffer);
    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
    
-   // glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
    checkGLError(676);
-   // glDrawArrays(GL_TRIANGLES, 0, 6);
 
    glDisableVertexAttribArray(0);
-   // glDisableVertexAttribArray(1);
+
    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
    glBindTexture(GL_TEXTURE_2D, 0);
 }
@@ -862,19 +813,16 @@ static void render()
 {
 	int width, height;
    glfwGetFramebufferSize(window, &width, &height);
-   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-   glViewport(0, 0, g_width, g_height);
-   checkGLError(706);
    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+   checkGLError(706);
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    checkGLError(708);
+   glViewport(0, 0, g_width, g_height);
 
-   glBindTexture(GL_TEXTURE_2D, 0);
+   // glBindTexture(GL_TEXTURE_2D, 0);
 
    curTime = glfwGetTime();
-
-
-   glDepthMask(GL_TRUE);
 
    float aspect = width/(float)height;
    auto P = make_shared<MatrixStack>();
@@ -888,13 +836,26 @@ static void render()
    drawBackground(P);
 
    glEnable(GL_DEPTH_TEST);
+   glDepthMask(GL_TRUE);
+   glDepthFunc(GL_GREATER);
 
    drawPlanets(P, view);
-   // glReadPixels(width / 2 - 5, height / 2 - 5, width / 2 + 5, height / 2 + 5, GL_RGB, GL_FLOAT, data);
+   drawAsteroids(P, view);
+
+   // glReadPixels(0, 0, g_width, g_height, GL_DEPTH_COMPONENT, GL_FLOAT, data);
    // printMidPixels();
-   // drawAsteroids(P, view);
+
+   // glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
+   // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+
+   // glBlitFramebuffer(0, 0, g_width, g_height, 0, 0, g_width, g_height,
+   //    GL_DEPTH_BUFFER_BIT, GL_NEAREST);
+   // checkGLError(838);
+
+   glDisable(GL_DEPTH_TEST);
 
    P->popMatrix();
+
    blurTexture(width, height);
    drawRenderedTexture(width, height);
 }
@@ -914,9 +875,9 @@ int main(int argc, char **argv)
    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
 
 	// Create a windowed mode window and its OpenGL context.
-	window = glfwCreateWindow(1024, 768, "Brandon Cooper", NULL, NULL);
-  g_width = 1024;
-  g_height = 768;
+	window = glfwCreateWindow(1024, 716, "Brandon Cooper", NULL, NULL);
+   g_width = 1024;
+   g_height = 716;
 
 	if(!window) {
 		glfwTerminate();
@@ -952,7 +913,7 @@ int main(int argc, char **argv)
 	init();
    initGeom();
    initPlanets();
-   // initAsteroids();
+   initAsteroids();
 
    // if (!setupRenderTexture()) {
    //    cout << "Framebuffer error\n";
