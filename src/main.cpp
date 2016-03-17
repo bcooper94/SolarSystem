@@ -3,6 +3,7 @@
 	CPE 471 Cal Poly Z. Wood + S. Sueda
 */
 #include <math.h>
+#include <cstring>
 #include "main.h"
 #include "Texture.h"
 #include "Planet.h"
@@ -11,7 +12,7 @@
 using namespace std;
 using namespace Eigen;
 
-#define ASTEROID_COUNT 1
+#define ASTEROID_COUNT 450
 #define OBJECT_DISTANCE 40
 
 GLFWwindow *window; // Main application window
@@ -20,7 +21,7 @@ static string IMG_DIR = "resources/img/";
 
 static int textureCount = 0;
 
-shared_ptr<Program> prog, backgroundProg, bloomProg;
+shared_ptr<Program> backgroundProg, bloomProg, quadProg;
 
 Texture backgroundTexture;
 
@@ -30,7 +31,7 @@ vector<PlanetMesh> asteroidMeshes;
 int g_width, g_height;
 float objectRotation, lightXTranslate, cameraBeta, cameraAlpha;
 int gMat = 0;
-bool mouseDown = false;
+bool mouseDown = false, bloom = true;
 double xPosition, yPosition;
 Vector3f eye, upDirection, lookAtPoint;
 bool mouseActive = true;
@@ -46,7 +47,6 @@ GLuint framebuffer = 0, depthBuffer;
 map<bool, GLuint> pingpongFBO;
 
 GLuint renderedTexture,
-   depthTexture,
    // The fullscreen quad's FBO
    quad_VertexArrayID,
    quad_vertexbuffer,
@@ -55,12 +55,6 @@ GLuint renderedTexture,
 GLuint brightTextures[2];
 
 GLenum drawBuffers[2] = {GL_COLOR_ATTACHMENT0, GL_COLOR_ATTACHMENT1};
-
-shared_ptr<Program> quadProg;
-
-GLubyte *data;
-
-Texture test;
 
 static float degreesToRad(float degrees) {
    return 3.1415 * degrees / 180;
@@ -100,79 +94,6 @@ static void checkGLError(int lineNum) {
       case GL_STACK_OVERFLOW:
          cout << "GLError: stack overflow on line " << lineNum << endl;
          break;
-   }
-}
-
-void SetMaterial(int mat) {
-  switch (mat) {
-    case 0: //shiny blue plastic
-      glUniform3f(prog->getUniform("matAmbient"), 0.02, 0.04, 0.2);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.0, 0.16, 0.9);
-      glUniform3f(prog->getUniform("matSpecular"), 0.14, 0.2, 0.8);
-      glUniform1f(prog->getUniform("specularPower"), 120.0);
-      //set specular to: (0.14, 0.2, 0.8);
-      //set shine to: (120.0);
-      break;
-    case 1: // flat grey
-      glUniform3f(prog->getUniform("matAmbient"), 0.13, 0.13, 0.14);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.3, 0.3, 0.4);
-      glUniform3f(prog->getUniform("matSpecular"), 0.3, 0.3, 0.4);
-      glUniform1f(prog->getUniform("specularPower"), 4.0);
-      //set specular to: (0.3, 0.3, 0.4);
-      //set shine to: (4.0);
-      break;
-    case 2: //brass
-      glUniform3f(prog->getUniform("matAmbient"), 0.3294, 0.2235, 0.02745);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.7804, 0.5686, 0.11373);
-      glUniform3f(prog->getUniform("matSpecular"), 0.9922, 0.941176, 0.80784);
-      glUniform1f(prog->getUniform("specularPower"), 27.9);
-      //set specualr to: (0.9922, 0.941176, 0.80784);
-      //set shine to: (27.9);
-      break;
-    case 3: //copper
-      glUniform3f(prog->getUniform("matAmbient"), 0.1913, 0.0735, 0.0225);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.7038, 0.27048, 0.0828);
-      glUniform3f(prog->getUniform("matSpecular"), 0.257, 0.1376, 0.08601);
-      glUniform1f(prog->getUniform("specularPower"), 12.8);
-      //set specualr to: (0.257, 0.1376, 0.08601);
-      //set shine to: (12.8);
-      break;
-    case 4: // grass
-      glUniform3f(prog->getUniform("matAmbient"), 0.01, 0.05, 0.02);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.07, 0.3, 0.1);
-      glUniform3f(prog->getUniform("matSpecular"), 0.1, 0.25, 0.15);
-      glUniform1f(prog->getUniform("specularPower"), 9.8);
-      break;
-    case 5: // silver
-      glUniform3f(prog->getUniform("matAmbient"), 0.19225, 0.19225, 0.19225);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.50754, 0.50754, 0.50754);
-      glUniform3f(prog->getUniform("matSpecular"), 0.508273, 0.508273, 0.508273);
-      glUniform1f(prog->getUniform("specularPower"), 51.2);
-      break;
-    case 6: // ruby
-      glUniform3f(prog->getUniform("matAmbient"), 0.1745, 0.01175, 0.01175);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.61424, 0.04136, 0.04136);
-      glUniform3f(prog->getUniform("matSpecular"), 0.727811, 0.626959, 0.626959);
-      glUniform1f(prog->getUniform("specularPower"), 76.8);
-      break;
-    case 7: // gold
-      glUniform3f(prog->getUniform("matAmbient"), 0.24725, 0.1995, 0.0745);
-      glUniform3f(prog->getUniform("matDiffuse"), 0.75164, 0.60648, 0.22648);
-      glUniform3f(prog->getUniform("matSpecular"), 0.628281, 0.555802, 0.366065);
-      glUniform1f(prog->getUniform("specularPower"), 51.2);
-      break;
-    case 8: // sun
-      glUniform3f(prog->getUniform("matAmbient"), 1, 0.7, 0);
-      glUniform3f(prog->getUniform("matDiffuse"), 0, 0, 0);
-      glUniform3f(prog->getUniform("matSpecular"), 0, 0, 0);
-      glUniform1f(prog->getUniform("specularPower"), 51.2);
-      break;
-    case 9: // planets
-      glUniform3f(prog->getUniform("matAmbient"), 1, 0.7, 0);
-      glUniform3f(prog->getUniform("matDiffuse"), 0, 0, 0);
-      glUniform3f(prog->getUniform("matSpecular"), 0, 0, 0);
-      glUniform1f(prog->getUniform("specularPower"), 51.2);
-      break;
    }
 }
 
@@ -312,16 +233,6 @@ static void initGeom() {
    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(idx), idx, GL_STATIC_DRAW);
 }
 
-static shared_ptr<Shape> initShape(string objFilename) {
-   // Initialize mesh.
-   shared_ptr<Shape> shape = make_shared<Shape>();
-   shape->loadMesh(RESOURCE_DIR + objFilename);
-   shape->resize();
-   shape->init();
-
-   return shape;
-}
-
 static void init()
 {
    GLSL::checkVersion();
@@ -363,31 +274,6 @@ static void init()
    bloomProg->addUniform("horizontal");
    bloomProg->addUniform("blurDir");
    bloomProg->addAttribute("vertPos");
-
-   // Initialize the GLSL program.
-   prog = make_shared<Program>();
-   prog->setVerbose(false);
-   prog->setShaderNames(RESOURCE_DIR + "simple_vert.glsl", RESOURCE_DIR + "simple_frag.glsl");
-   prog->init();
-   prog->addUniform("P");
-   prog->addUniform("V");
-   prog->addUniform("M");
-   prog->addUniform("curTime");
-   prog->addUniform("curTime");
-   prog->addUniform("orbitDimensions");
-   prog->addUniform("orbitTime");
-   prog->addUniform("initialAngle");
-   prog->addUniform("lightPos");
-   // prog->addUniform("lightDirection");
-   prog->addUniform("lightColor");
-   prog->addUniform("matAmbient");
-   prog->addUniform("matDiffuse");
-   prog->addUniform("matSpecular");
-   prog->addUniform("specularPower");
-   prog->addUniform("attenuation");
-   prog->addAttribute("vertPos");
-   prog->addAttribute("vertNor");
-   prog->addAttribute("vertTex");
 
    backgroundTexture = Texture();
 
@@ -433,7 +319,6 @@ static void initPlanets() {
       Vector3f(OBJECT_DISTANCE, 0, 0)), "pluto.bmp", "sphere.obj", textureCount));
 
    planetMeshes[0].init();
-   // planetMeshes[0].setMaterial(Vector3f(1, 0.7, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
    planetMeshes[0].setMaterial(Vector3f(15, 12, 0), Vector3f(0, 0, 0), Vector3f(0, 0, 0), 51.2);
 
    for (size_t index = 1; index < planetMeshes.size(); index++) {
@@ -446,7 +331,7 @@ static void initPlanets() {
 
 static void initAsteroids() {
    Texture asteroidText;
-   float angle, x, y, height, distance, radius,
+   float angle, height, distance, radius,
    distFromSun = 30.0, distRange = 3.25,
       heightRange = 2.5, radiusMid = 0.18, radiusRange = 0.1;
 
@@ -463,11 +348,8 @@ static void initAsteroids() {
    for (size_t index = 0; index < ASTEROID_COUNT; index++) {
       angle = ((float)rand() / RAND_MAX) * 360;
       distance = distFromSun - distRange + ((float)rand() / RAND_MAX) * 2 * distRange;
-      x = distance * cos(angle);
-      y = distance * sin(angle);
       height = ((float)rand() / RAND_MAX) * heightRange;
       radius = radiusMid + ((float)rand() / RAND_MAX) * radiusRange;
-      // cout << "Creating asteroid: " << index << "at angle: " << angle << endl;
 
       asteroidMeshes.push_back(PlanetMesh(make_shared<Planet>(radius, angle, 10.0, distance, distance, 50.0,
          Vector3f(OBJECT_DISTANCE, height, 0)), asteroidText, asteroidModel));
@@ -491,34 +373,6 @@ static shared_ptr<MatrixStack> getView() {
    view->lookAt(eye, lookAtPoint, upDirection);
 
    return view;
-}
-
-static void printMidPixels() {
-   cout << "Printing pixels:\n";
-   for (int i = 0; i < 10; i++) {
-      for (int j = 0; j < 10; j++) {
-         printf("%d ", data[g_width / 2 - 5 + i + g_width * (g_height / 2 - 5 + j)]);
-      }
-   }
-   cout << endl;
-}
-
-static void draw(shared_ptr<Program>& program,
-      shared_ptr<Shape>& shape, shared_ptr<MatrixStack>& P,
-      shared_ptr<MatrixStack>& M) {
-   
-   shared_ptr<MatrixStack> view = getView();
-
-   glUniformMatrix4fv(prog->getUniform("P"), 1, GL_FALSE, P->topMatrix().data());
-   glUniformMatrix4fv(program->getUniform("M"), 1, GL_FALSE, M->topMatrix().data());
-   glUniformMatrix4fv(program->getUniform("V"), 1, GL_FALSE, view->topMatrix().data());
-   glUniform3f(program->getUniform("lightPos"), 0, 0, -6);
-   // glUniform3f(program->getUniform("lightDirection"), -0.2, 0.2, 1);
-   glUniform3f(program->getUniform("lightColor"), 1, 1, 1);
-   glUniform3f(program->getUniform("attenuation"), 1, 0, 0);
-   shape->draw(program);
-
-   view->popMatrix();
 }
 
 static void drawBackground(shared_ptr<MatrixStack>& P) {
@@ -555,7 +409,7 @@ static void drawBackground(shared_ptr<MatrixStack>& P) {
 }
 
 static void drawPlanets(shared_ptr<MatrixStack>& P, shared_ptr<MatrixStack> view) {
-   int planetCount = planetMeshes.size();
+   size_t planetCount = planetMeshes.size();
 
    for (size_t index = 0; index < planetCount; index++) {
       planetMeshes[index].draw(curTime, view, P);
@@ -575,24 +429,16 @@ static void setupDepthBuffer() {
    checkGLError(574);
    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, g_width, g_height);
    checkGLError(576);
-   // glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthBuffer);
-   // checkGLError(577);
-   // glBindRenderbuffer(GL_RENDERBUFFER, 0);
-   // checkGLError(591);
 }
 
 static void setupRenderTexture() {
-   data = (GLubyte *)malloc(16 * g_width * g_height);
-
    glDepthMask(GL_TRUE);
 
    renderedTexture = createTexture(g_width, g_height, false);
    brightTextures[0] = createTexture(g_width, g_height, false);
    brightTextures[1] = createTexture(g_width, g_height, false);
-   // depthTexture = createTexture(g_width, g_height, true);
 
    setupDepthBuffer();
-   // glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
 
    glGenFramebuffers(1, &framebuffer);
    checkGLError(567);
@@ -608,12 +454,6 @@ static void setupRenderTexture() {
 
    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, brightTextures[0], 0);
    checkGLError(584);
-
-   // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, brightTextures[0], 0);
-   // checkGLError(612);
-   
-   // glFramebufferTexture2D(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D, depthTexture, 0);
-   // checkGLError(599);
 
    // glBindRenderbuffer(GL_RENDERBUFFER, depthBuffer);
    // checkGLError(574);
@@ -752,8 +592,7 @@ static void blurTexture(int width, int height) {
 
    glViewport(0, 0, width, height);
    checkGLError(666);
-   // glClear(GL_COLOR_BUFFER_BIT);
-   checkGLError(668);
+
    glClearColor(0, 0, 1.0, 0.5);
 
    bloomProg->bind();
@@ -814,13 +653,11 @@ static void render()
 	int width, height;
    glfwGetFramebufferSize(window, &width, &height);
 
-   glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+   glBindFramebuffer(GL_FRAMEBUFFER, bloom ? framebuffer : 0);
    checkGLError(706);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
    checkGLError(708);
    glViewport(0, 0, g_width, g_height);
-
-   // glBindTexture(GL_TEXTURE_2D, 0);
 
    curTime = glfwGetTime();
 
@@ -836,28 +673,18 @@ static void render()
    drawBackground(P);
 
    glEnable(GL_DEPTH_TEST);
-   glDepthMask(GL_TRUE);
-   glDepthFunc(GL_GREATER);
 
    drawPlanets(P, view);
    drawAsteroids(P, view);
-
-   // glReadPixels(0, 0, g_width, g_height, GL_DEPTH_COMPONENT, GL_FLOAT, data);
-   // printMidPixels();
-
-   // glBindFramebuffer(GL_READ_FRAMEBUFFER, framebuffer);
-   // glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
-
-   // glBlitFramebuffer(0, 0, g_width, g_height, 0, 0, g_width, g_height,
-   //    GL_DEPTH_BUFFER_BIT, GL_NEAREST);
-   // checkGLError(838);
 
    glDisable(GL_DEPTH_TEST);
 
    P->popMatrix();
 
-   blurTexture(width, height);
-   drawRenderedTexture(width, height);
+   if (bloom) {
+      blurTexture(width, height);
+      drawRenderedTexture(width, height);
+   }
 }
 
 int main(int argc, char **argv)
@@ -868,6 +695,12 @@ int main(int argc, char **argv)
 	if(!glfwInit()) {
 		return -1;
 	}
+
+   if (argc > 1 && strcmp(argv[1], "--no-bloom") == 0) {
+      bloom = false;
+      cout << "Disabling bloom\n";
+   }
+
    //request the highest possible version of OGL - important for mac
    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
